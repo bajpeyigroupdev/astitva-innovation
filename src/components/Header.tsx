@@ -18,10 +18,8 @@ const Header = () => {
       <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
           {/* Logo */}
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-gradient-primary rounded-lg flex items-center justify-center">
-              <Code2 className="w-6 h-6 text-white" />
-            </div>
+          <div className="flex items-center gap-3 cursor-pointer" onClick={() => scrollToSection("home")}>
+            <img src="/logo.png" alt="Astitva Innovation Logo" className="w-10 h-10 object-contain bg-white/10 p-1 rounded-lg border border-white/10 shadow-sm" />
             <span className="text-xl font-bold bg-gradient-primary bg-clip-text text-transparent">
               Astitva Innovation
             </span>
