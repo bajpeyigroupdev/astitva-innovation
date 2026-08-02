@@ -1,8 +1,8 @@
-# Welcome to your Lovable project
+# Welcome to Astitva Innovation
 
-## Project info
+**Production URL**: https://www.astitvainnovation.com
+**CI/CD Pipeline**: GitHub Actions -> aaPanel Server (217.216.58.223)
 
-**URL**: https://lovable.dev/projects/ed490ad5-d852-4990-b3b4-6f452f8b2f1f
 
 ## How can I edit this code?
 
