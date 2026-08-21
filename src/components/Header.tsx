@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Menu, X, Code2 } from "lucide-react";
+import { Menu, X } from "lucide-react";
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -15,14 +15,15 @@ const Header = () => {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
-      <div className="container mx-auto px-4 py-4">
+      <div className="container mx-auto px-4 py-3">
         <div className="flex items-center justify-between">
           {/* Logo */}
-          <div className="flex items-center gap-3 cursor-pointer" onClick={() => scrollToSection("home")}>
-            <img src="/logo.png" alt="Astitva Innovation Logo" className="w-10 h-10 object-contain bg-white/10 p-1 rounded-lg border border-white/10 shadow-sm" />
-            <span className="text-xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-              Astitva Innovation
-            </span>
+          <div className="cursor-pointer" onClick={() => scrollToSection("home")}>
+            <img
+              src="/astitva-logo.png"
+              alt="Astitva Innovation"
+              className="h-12 md:h-14 w-auto object-contain"
+            />
           </div>
 
           {/* Desktop Navigation */}

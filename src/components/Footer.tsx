@@ -1,4 +1,4 @@
-import { Code2, Mail, Phone, MapPin } from "lucide-react";
+import { Mail, Phone, MapPin } from "lucide-react";
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
@@ -16,11 +16,12 @@ const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           {/* Company Info */}
           <div className="md:col-span-2">
-            <div className="flex items-center gap-3 mb-4">
-              <img src="/logo.png" alt="Astitva Innovation Logo" className="w-10 h-10 object-contain bg-white/10 p-1 rounded-lg border border-white/10 shadow-sm" />
-              <span className="text-xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-                Astitva Innovation
-              </span>
+            <div className="mb-4">
+              <img
+                src="/astitva-logo.png"
+                alt="Astitva Innovation"
+                className="h-24 w-auto object-contain"
+              />
             </div>
             <p className="text-muted-foreground mb-4 leading-relaxed">
               Transforming ideas into powerful digital experiences through innovative software solutions. 
