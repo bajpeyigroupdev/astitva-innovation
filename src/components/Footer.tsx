@@ -237,6 +237,9 @@ export const Footer = ({ onOpenLegal }: FooterProps) => {
             <button onClick={() => onOpenLegal("refund")} className="hover:text-foreground transition-colors">
               Refunds
             </button>
+            <a href="/admin" className="hover:text-primary transition-colors text-accent font-medium">
+              Admin Portal
+            </a>
             <a href="https://github.com/astitvainnovation" target="_blank" rel="noreferrer" className="hover:text-foreground transition-colors">
               GitHub
             </a>

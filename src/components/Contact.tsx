@@ -57,6 +57,26 @@ export const Contact = ({ prefilledScope }: ContactProps) => {
     e.preventDefault();
     setIsSubmitting(true);
 
+    // Save inquiry to localStorage for Admin Panel
+    const newInquiry = {
+      id: "INQ-" + Math.floor(1000 + Math.random() * 9000),
+      name: formData.name,
+      email: formData.email,
+      phone: formData.phone || "Not provided",
+      service: formData.service,
+      budget: formData.budget,
+      message: formData.message,
+      date: new Date().toISOString().slice(0, 16).replace("T", " "),
+      status: "New"
+    };
+
+    try {
+      const existing = JSON.parse(localStorage.getItem("astitva_inquiries") || "[]");
+      localStorage.setItem("astitva_inquiries", JSON.stringify([newInquiry, ...existing]));
+    } catch (err) {
+      console.error("Failed to store inquiry:", err);
+    }
+
     // Simulate submission
     await new Promise(resolve => setTimeout(resolve, 900));
 
