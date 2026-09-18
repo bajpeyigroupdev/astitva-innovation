@@ -1,100 +1,75 @@
-# Astitva Innovation — Technical Architecture & Decoupling Guide
+# Astitva Innovation — System Architecture & Decoupling Documentation
 
-This document outlines the decoupled enterprise software engineering architecture implemented for **Astitva Innovation** (`astitvainnovation.in`), completely separating the Public Corporate Website and the Administrative Dashboard Panel.
+This document defines the production architecture of **Astitva Innovation**, featuring complete decoupling between the Corporate Public Website, the authoritative B2B Dashboard, and the Node.js API Service.
 
 ---
 
-## 1. Directory & System Architecture
+## 1. Domain & Infrastructure Architecture
+
+| Application | Domain | Repository Folder | Production Document Root |
+| :--- | :--- | :--- | :--- |
+| **Corporate Website** | `https://astitvainnovation.in` | `astitva-main/` | `/www/wwwroot/astitvainnovation.in` |
+| **B2B Dashboard** | `https://b2b.astitvainnovation.in` | `dashboard/` | `/www/wwwroot/b2b.astitvainnovation.in` |
+| **Backend API Service** | `https://astitvainnovation.in/api` | `server/` | `/www/wwwroot/astitva-api` (Port 5000) |
+
+- **Authoritative Server IP**: `217.216.58.223` (Ubuntu Linux)
+- **Web Engine**: Nginx 1.24.0 (Independent VHosts with SPA fallback `try_files $uri $uri/ /index.html;`)
+
+---
+
+## 2. Decoupled Application Structure
 
 ```
 E:\Company\Astitva Innovation\
-├── astitva-main/                  # Public Corporate Web Platform
-│   ├── src/
-│   │   ├── website/               # 100% Isolated Public Website Layer
-│   │   │   ├── components/        # Hero, FinTech, Services, Calculator, TechStack, Process, etc.
-│   │   │   ├── pages/             # HomePage.tsx, NotFoundPage.tsx
-│   │   │   ├── services/          # inquiryService.ts (Lead dispatch to storage/API adapter)
-│   │   │   ├── types/             # website.ts
-│   │   │   └── WebsiteApp.tsx     # Public routing orchestrator (/, /services, /fintech, /contact)
-│   │   │
-│   │   ├── panel/                 # Integrated Admin Panel Module
-│   │   │   ├── auth/              # AdminAuthGuard.tsx, authService.ts
-│   │   │   ├── components/        # AdminLogin, DashboardOverview, Inquiries, FinTech, etc.
-│   │   │   ├── services/          # inquiryService.ts
-│   │   │   └── AdminPanel.tsx     # Master panel orchestrator
-│   │   │
-│   │   ├── shared/                # Genuinely Shared Primitives & Contracts
-│   │   │   ├── components/ui/     # Radix & Tailwind generic primitives
-│   │   │   ├── types/             # inquiry.ts (Canonical Inquiry & PaymentLog interfaces)
-│   │   │   ├── constants/         # config.ts (Brand, domain, storage keys)
-│   │   │   └── utils/             # cn.ts, storage.ts (Decoupled storage adapter)
-│   │   │
-│   │   ├── App.tsx                # High-level router delegating / to WebsiteApp and /admin to Panel
-│   │   └── main.tsx
-│   ├── .env.example               # Safe environment template
-│   └── .env                       # Gitignored production environment credentials
 │
-└── dashboard/                     # Standalone Dedicated Dashboard Application
-    ├── src/
-    │   ├── auth/                  # AdminAuthGuard.tsx, authService.ts (Sliding 4hr expiration)
-    │   ├── layouts/               # PanelLayout.tsx (Responsive sidebar, breadcrumbs, server health)
-    │   ├── pages/                 # LoginPage, OverviewPage, InquiriesPage, FinTechPage, ProposalsPage,
-    │   │                          # ServicesPage, ServerPage, SettingsPage
-    │   ├── services/              # inquiryService.ts
-    │   ├── components/            # AddLeadModal.tsx, UI primitives
-    │   ├── constants/             # config.ts
-    │   ├── types/                 # index.ts
-    │   ├── App.tsx                # Standalone router (/login, /, /inquiries, /fintech, etc.)
-    │   └── main.tsx
-    ├── .env.example
-    └── .env                       # Gitignored production credentials
+├── astitva-main/              # Standalone Corporate Website (astitvainnovation.in)
+│   ├── src/
+│   │   ├── website/          # Landing page sections, hero, fintech, calculator, contact
+│   │   ├── shared/           # Design system tokens & types
+│   │   ├── App.tsx           # Website SPA router (no admin panel code)
+│   │   └── main.tsx
+│   ├── public/
+│   ├── package.json
+│   └── vite.config.ts
+│
+├── dashboard/                 # Authoritative B2B Admin Command Center (b2b.astitvainnovation.in)
+│   ├── src/
+│   │   ├── auth/             # Server API auth service, AdminAuthGuard (JWT Bearer)
+│   │   ├── layouts/          # PanelLayout, sidebar, header, system metrics
+│   │   ├── pages/            # Login, Overview, Inquiries, FinTech, Proposals, Services, Server, Settings
+│   │   ├── services/         # API data services (inquiryService, fintechService)
+│   │   ├── App.tsx           # B2B SPA router
+│   │   └── main.tsx
+│   ├── public/               # robots.txt (Disallow: /)
+│   ├── package.json
+│   └── vite.config.ts
+│
+├── server/                    # Node.js / Express API & Persistence Layer
+│   ├── server.js             # Bcrypt auth, rate limiting, inquiries CRUD, fintech simulation
+│   ├── data/                 # JSON file store with atomic file locking
+│   ├── ecosystem.config.js   # PM2 configuration for Ubuntu VPS
+│   └── package.json
+│
+└── nginx/                     # Separate VHost Configurations
+    ├── nginx_astitvainnovation.conf  # Corporate Website config
+    └── nginx_b2b_dashboard.conf      # B2B Dashboard config
 ```
 
 ---
 
-## 2. Decoupled Data Flow: Website → Admin Panel
+## 3. Security & Authentication Architecture
 
-```
-[Public Website User]
-       │
-       ▼ Submits Contact Form or Project Calculator Estimate
-[src/website/services/inquiryService.ts]
-       │
-       ▼ submitLead()
-[src/shared/utils/storage.ts] (Decoupled Storage / API Adapter)
-       │
-       ▼ LocalStorage / Database Persistence (`astitva_inquiries`)
-[src/panel/services/inquiryService.ts]
-       │
-       ▼ getInquiries() / updateStatus()
-[Administrator Command Center (/admin)]
-```
-
-> **Zero Cross-Component Coupling**: Public website components never import panel components, and panel components never import website sections.
-
----
-
-## 3. Administrative Authentication & Security Hardening
-
-1. **Purged Insecure Patterns**:
-   - `admin123` and hardcoded fallback passwords have been completely purged from source code, markup, and comments.
-2. **Environment Variable Authentication**:
-   - The authentication service checks credentials dynamically against:
-     - `VITE_ADMIN_USERNAME`
-     - `VITE_ADMIN_PASSWORD`
-   - Real passwords never exist in source code or Git history.
-3. **Session Lifecycle**:
-   - Authenticated sessions generate a randomized token with an absolute timestamp stored in `sessionStorage`.
-   - Sessions automatically expire after 4 hours (`APP_CONFIG.sessionDurationHours`).
-4. **Search Engine Protection (`noindex`)**:
-   - `AdminAuthGuard` and `index.html` inject `<meta name="robots" content="noindex, nofollow, noarchive" />` to strictly prevent Google or search engine bots from discovering or indexing administrative endpoints.
-
----
-
-## 4. Production Server & Routing Specifications
-
-- **Production Domain**: `https://astitvainnovation.in`
-- **Server VPS IP**: `217.216.58.223` (Ubuntu Linux)
-- **Web Server**: Nginx 1.24.0 with HTTP/2 and Let's Encrypt TLS v1.3
-- **Document Root**: `/www/wwwroot/astitvainnovation.in`
-- **Deployment Archive**: `astitva-dist.zip`
+1. **Zero Secrets in Frontend**:
+   - `VITE_ADMIN_PASSWORD` is completely eliminated from frontend bundles.
+   - Vite embeds `VITE_*` variables into public JavaScript; therefore, production credentials are strictly verified server-side.
+2. **Server-Side Password Verification**:
+   - Identity: `AST-ADMIN-01`
+   - Algorithm: Bcrypt with high salt rounds (12 rounds).
+   - Session Tokens: Cryptographically signed JWTs with 8-hour expiration.
+   - Brute-Force Rate Limiting: Max 10 attempts per 15 minutes on `/api/auth/login`.
+3. **Data Flow & Persistence**:
+   - Public submissions from `astitvainnovation.in` post to `/api/inquiries`.
+   - The B2B dashboard at `b2b.astitvainnovation.in` fetches inquiries from `/api/inquiries` using authenticated Bearer tokens.
+   - Browser `localStorage` is maintained solely as an offline development fallback.
+4. **Search Engine Protection**:
+   - `b2b.astitvainnovation.in` is strictly hidden from search engines via `robots.txt`, `X-Robots-Tag: noindex, nofollow, noarchive, nosnippet`, and HTML meta tags.

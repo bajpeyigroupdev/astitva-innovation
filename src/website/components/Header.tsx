@@ -58,6 +58,12 @@ export const Header = () => {
               Services
             </button>
             <button
+              onClick={() => scrollToSection("products")}
+              className="text-foreground/80 hover:text-primary transition-colors"
+            >
+              Products
+            </button>
+            <button
               onClick={() => scrollToSection("fintech")}
               className="flex items-center gap-1.5 text-accent hover:text-accent/80 transition-colors font-semibold"
             >
@@ -142,6 +148,12 @@ export const Header = () => {
                 className="text-left py-2 px-3 rounded-lg hover:bg-card text-foreground"
               >
                 Services
+              </button>
+              <button
+                onClick={() => scrollToSection("products")}
+                className="text-left py-2 px-3 rounded-lg hover:bg-card text-foreground"
+              >
+                Products (Meethi Chat)
               </button>
               <button
                 onClick={() => scrollToSection("fintech")}

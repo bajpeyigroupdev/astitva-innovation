@@ -3,6 +3,7 @@ import Header from "../components/Header";
 import Hero from "../components/Hero";
 import PaymentSolutions from "../components/PaymentSolutions";
 import Services from "../components/Services";
+import Products from "../components/Products";
 import ProjectCalculator from "../components/ProjectCalculator";
 import TechStack from "../components/TechStack";
 import Process from "../components/Process";
@@ -40,6 +41,7 @@ export const HomePage = () => {
         <Hero />
         <PaymentSolutions />
         <Services />
+        <Products />
         <ProjectCalculator onSelectScope={handleSelectScope} />
         <TechStack />
         <Process />

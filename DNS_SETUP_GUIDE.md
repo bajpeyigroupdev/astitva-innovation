@@ -19,7 +19,7 @@ Apne Domain ke DNS Manager me jaakar neeche diye gaye 2 main records add karein:
 
 ## 2. Optional: Business Email Setup (Google Workspace / Zoho / aaPanel Mail)
 
-Agar aapko email chahiye jaise `contact@astitvainnovation.in` ya `sales@astitvainnovation.in`:
+Agar aapko email chahiye jaise `contact@astitvainnovation.in` ya `support@astitvainnovation.in`:
 
 ### Option A: aaPanel Built-in Mail Server
 | Type | Name | Value | Priority | TTL |

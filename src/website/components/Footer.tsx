@@ -47,8 +47,8 @@ export const Footer = ({ onOpenLegal }: FooterProps) => {
               </div>
               <div className="flex items-center gap-2.5">
                 <Mail className="w-4 h-4 text-accent shrink-0" />
-                <a href="mailto:sales@astitvainnovation.in" className="hover:text-accent transition-colors">
-                  sales@astitvainnovation.in
+                <a href="mailto:support@astitvainnovation.in" className="hover:text-accent transition-colors">
+                  support@astitvainnovation.in
                 </a>
               </div>
               <div className="flex items-center gap-2.5">
@@ -134,6 +134,14 @@ export const Footer = ({ onOpenLegal }: FooterProps) => {
                   className="hover:text-primary transition-colors text-left"
                 >
                   Home
+                </button>
+              </li>
+              <li>
+                <button 
+                  onClick={() => scrollToSection("products")}
+                  className="hover:text-primary transition-colors text-left font-medium text-accent"
+                >
+                  Products (Meethi Chat)
                 </button>
               </li>
               <li>
@@ -237,8 +245,8 @@ export const Footer = ({ onOpenLegal }: FooterProps) => {
             <button onClick={() => onOpenLegal("refund")} className="hover:text-foreground transition-colors">
               Refunds
             </button>
-            <a href="/admin" className="hover:text-primary transition-colors text-accent font-medium">
-              Admin Portal
+            <a href="https://b2b.astitvainnovation.in/login" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors text-accent font-medium">
+              B2B Portal
             </a>
             <a href="https://github.com/astitvainnovation" target="_blank" rel="noreferrer" className="hover:text-foreground transition-colors">
               GitHub

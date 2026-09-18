@@ -5,7 +5,7 @@ export const APP_CONFIG = {
   serverIp: "217.216.58.223",
   emails: {
     contact: "contact@astitvainnovation.in",
-    sales: "sales@astitvainnovation.in",
+    sales: "support@astitvainnovation.in",
     billing: "billing@astitvainnovation.in",
     privacy: "privacy@astitvainnovation.in",
   },

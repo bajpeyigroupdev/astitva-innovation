@@ -1,14 +1,17 @@
 # Astitva Innovation — Administrator Access Guide
 
-This guide details how to configure and access the Administrative Command Center for **Astitva Innovation**.
+This guide details how to access the authoritative B2B Administrative Command Center for **Astitva Innovation**.
 
 ---
 
-## 1. Access Endpoints
+## 1. Official B2B Access Endpoint
 
-- **Live Production URL**: [https://astitvainnovation.in/admin/login](https://astitvainnovation.in/admin/login)
-- **Local Development URL**: `http://localhost:8080/admin/login` (or `http://localhost:5173/login` in the standalone dashboard project)
-- **Primary Administrative Route**: `/admin` (or `/dashboard` alias)
+- **Authoritative Production URL**: [https://b2b.astitvainnovation.in/login](https://b2b.astitvainnovation.in/login)
+- **Local Development URL**: `http://localhost:5174/login` (or port assigned to dashboard)
+- **Public Corporate Website**: [https://astitvainnovation.in](https://astitvainnovation.in)
+
+> [!NOTE]
+> The Corporate Website (`astitvainnovation.in`) does NOT host the admin panel. All administrative traffic is isolated to the B2B subdomain `b2b.astitvainnovation.in`.
 
 ---
 
@@ -19,28 +22,34 @@ This guide details how to configure and access the Administrative Command Center
 
 ---
 
-## 3. Configuring Production Credentials in `.env`
+## 3. Server-Side Authentication Architecture
 
-To set or rotate your administrator credentials, edit the local gitignored `.env` file located in the root of your project:
+In production, admin credentials are never stored in client bundles or Vite environment variables. Authentication is handled server-side:
 
-```env
-# Production Admin Credentials
-VITE_ADMIN_USERNAME=AST-ADMIN-01
-VITE_ADMIN_PASSWORD=YOUR_STRONG_SECURE_PASSWORD
+```
+B2B Dashboard (b2b.astitvainnovation.in)
+     │
+     ▼ POST /api/auth/login
+Express API Server (Port 5000)
+     │
+     ▼ Bcrypt verification against ADMIN_PASSWORD_HASH
+Issued JWT Session Token (8h expiration)
 ```
 
-> [!IMPORTANT]
-> - Never commit `.env` into Git version control.
-> - The template file `.env.example` contains placeholders only and can be safely committed.
-> - Passwords must contain a minimum of 20 characters including uppercase, lowercase, numbers, and special symbols.
+Server environment configuration resides in `server/.env`:
+```env
+ADMIN_USERNAME=AST-ADMIN-01
+ADMIN_PASSWORD_HASH=<bcrypt hash>
+JWT_SECRET=<secret key>
+```
 
 ---
 
 ## 4. Administrative Security Policies
 
 1. **Expiring Sessions**:
-   - Authenticated admin sessions automatically terminate after **4 hours** of inactivity.
+   - Authenticated admin sessions automatically terminate after 8 hours.
 2. **Search Engine Protection**:
-   - All admin endpoints dynamically declare `<meta name="robots" content="noindex, nofollow" />`.
+   - `b2b.astitvainnovation.in` declares `noindex, nofollow, noarchive, nosnippet` in HTML, HTTP headers, and `robots.txt`.
 3. **Session Revocation**:
    - Clicking **Sign Out** immediately purges the session token from browser memory.
