@@ -1,45 +1,50 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { 
   Users, 
   Target, 
   Award, 
   Lightbulb,
   ArrowRight,
-  Code2,
-  Rocket,
-  Shield
+  Code2, 
+  Rocket, 
+  ShieldCheck,
+  CheckCircle2,
+  Lock,
+  Zap,
+  Globe2
 } from "lucide-react";
 
-const About = () => {
-  const values = [
+export const About = () => {
+  const guarantees = [
     {
-      icon: Lightbulb,
-      title: "Innovation",
-      description: "We constantly explore new technologies and methodologies to deliver cutting-edge solutions."
+      icon: Lock,
+      title: "100% Source Code Ownership",
+      desc: "All source code, design systems, database schemas, and cloud deployment scripts are transferred exclusively to your organization."
     },
     {
-      icon: Users,
-      title: "Collaboration",
-      description: "We work closely with our clients as partners, ensuring transparency and alignment throughout the project."
+      icon: ShieldCheck,
+      title: "Strict Mutual NDA Protection",
+      desc: "We sign non-disclosure agreements before discussing any proprietary technical architecture or business logic."
+    },
+    {
+      icon: Zap,
+      title: "Agile Sprints & Live Demos",
+      desc: "No black boxes. You get live staging URLs, weekly sprint demos, and direct access to developers via Slack or Teams."
     },
     {
       icon: Award,
-      title: "Excellence",
-      description: "We maintain the highest standards in code quality, design, and project delivery."
-    },
-    {
-      icon: Shield,
-      title: "Reliability",
-      description: "Our robust development practices ensure secure, scalable, and maintainable software solutions."
+      title: "60-Day Post-Launch Warranty",
+      desc: "Every release includes complimentary warranty support ensuring any unexpected bugs or anomalies are resolved immediately."
     }
   ];
 
   const stats = [
-    { number: "5+", label: "Years Experience" },
-    { number: "50+", label: "Projects Completed" },
-    { number: "20+", label: "Happy Clients" },
-    { number: "24/7", label: "Support" }
+    { number: "5+", label: "Years Engineering Experience" },
+    { number: "50+", label: "Enterprise Projects Shipped" },
+    { number: "₹100M+", label: "FinTech Volume Processed" },
+    { number: "24/7", label: "Production SLA Support" }
   ];
 
   const scrollToContact = () => {
@@ -50,120 +55,100 @@ const About = () => {
   };
 
   return (
-    <section id="about" className="py-20">
+    <section id="about" className="py-24 relative overflow-hidden">
       <div className="container mx-auto px-4">
+        
         {/* Header */}
-        <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-5xl font-bold mb-6">
+        <div className="max-w-3xl mx-auto text-center mb-16">
+          <Badge variant="outline" className="px-4 py-1.5 mb-4 text-xs font-semibold tracking-wider uppercase border-primary/40 bg-primary/10 text-primary">
+            Engineering Culture & Values
+          </Badge>
+          <h2 className="text-3xl md:text-5xl font-extrabold tracking-tight mb-4">
             About <span className="bg-gradient-primary bg-clip-text text-transparent">Astitva Innovation</span>
           </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Empowering businesses through innovative software solutions and cutting-edge technology
+          <p className="text-lg text-muted-foreground">
+            A software engineering powerhouse committed to crafting resilient web systems, mobile applications, and payment infrastructures for ambitious enterprises.
           </p>
         </div>
 
-        {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mb-16">
-          {/* Left Content */}
-          <div>
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 bg-gradient-primary rounded-lg flex items-center justify-center">
-                <Rocket className="w-6 h-6 text-white" />
-              </div>
-              <h3 className="text-2xl font-bold">Our Mission</h3>
-            </div>
+        {/* Story & Value Proposition */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center mb-20">
+          
+          {/* Left Text */}
+          <div className="lg:col-span-6 space-y-6">
+            <h3 className="text-2xl md:text-3xl font-bold text-foreground">
+              We Don't Just Write Code — We Engineer Business Outcomes
+            </h3>
             
-            <p className="text-muted-foreground mb-6 leading-relaxed">
-              At Astitva Innovation, we believe in the transformative power of technology. Our mission is to 
-              help businesses leverage cutting-edge software solutions to achieve their goals, streamline operations, 
-              and create exceptional user experiences.
+            <p className="text-sm md:text-base text-muted-foreground leading-relaxed">
+              Founded on the principles of technical excellence and transparency, <strong className="text-foreground">Astitva Innovation</strong> bridges the gap between complex software engineering and high-velocity commercial growth.
             </p>
 
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 bg-gradient-primary rounded-lg flex items-center justify-center">
-                <Target className="w-6 h-6 text-white" />
-              </div>
-              <h3 className="text-2xl font-bold">Our Vision</h3>
+            <p className="text-sm md:text-base text-muted-foreground leading-relaxed">
+              Whether you are an established enterprise modernizing legacy architecture or an emerging startup seeking a secure FinTech payment gateway integration, our team brings senior-level engineering rigor to every sprint.
+            </p>
+
+            <div className="pt-2">
+              <Button 
+                variant="hero" 
+                size="lg"
+                onClick={scrollToContact}
+                className="text-xs md:text-sm font-semibold"
+              >
+                Work With Our Engineering Team
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
             </div>
-
-            <p className="text-muted-foreground mb-8 leading-relaxed">
-              To be the leading software development partner that businesses trust for innovation, quality, 
-              and reliability. We envision a future where technology seamlessly integrates with business 
-              processes to drive growth and success.
-            </p>
-
-            <Button 
-              variant="hero" 
-              size="lg"
-              onClick={scrollToContact}
-            >
-              Work With Us
-              <ArrowRight className="w-5 h-5 ml-2" />
-            </Button>
           </div>
 
-          {/* Right Content - Stats */}
-          <div>
-            <div className="bg-card/30 backdrop-blur-sm border border-primary/20 rounded-2xl p-8">
-              <div className="flex items-center gap-3 mb-8">
-                <div className="w-12 h-12 bg-gradient-primary rounded-lg flex items-center justify-center">
-                  <Code2 className="w-6 h-6 text-white" />
-                </div>
-                <h3 className="text-2xl font-bold">Why Choose Us?</h3>
-              </div>
-
-              <div className="grid grid-cols-2 gap-6 mb-8">
-                {stats.map((stat, index) => (
-                  <div key={index} className="text-center">
-                    <div className="text-3xl font-bold text-primary mb-2">{stat.number}</div>
-                    <div className="text-sm text-muted-foreground">{stat.label}</div>
+          {/* Right Stats Grid */}
+          <div className="lg:col-span-6">
+            <div className="grid grid-cols-2 gap-4">
+              {stats.map((stat, idx) => (
+                <div 
+                  key={idx}
+                  className="p-6 rounded-2xl bg-card/50 border border-border/70 backdrop-blur-sm hover:border-primary/40 transition-all text-center"
+                >
+                  <div className="text-3xl md:text-4xl font-black bg-gradient-primary bg-clip-text text-transparent mb-2">
+                    {stat.number}
                   </div>
-                ))}
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-accent rounded-full" />
-                  <span className="text-sm">Expert team of developers and designers</span>
+                  <div className="text-xs text-muted-foreground font-medium">
+                    {stat.label}
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-accent rounded-full" />
-                  <span className="text-sm">Agile development methodology</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-accent rounded-full" />
-                  <span className="text-sm">Cutting-edge technologies</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-accent rounded-full" />
-                  <span className="text-sm">24/7 support and maintenance</span>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
+
         </div>
 
-        {/* Values */}
+        {/* The 4 Guarantees */}
         <div>
-          <h3 className="text-3xl font-bold text-center mb-12">
-            Our <span className="bg-gradient-primary bg-clip-text text-transparent">Core Values</span>
-          </h3>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {values.map((value, index) => (
+          <div className="text-center mb-12">
+            <h3 className="text-2xl font-bold mb-2">The Astitva Engineering Guarantees</h3>
+            <p className="text-xs text-muted-foreground">What every client receives on every engagement</p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {guarantees.map((item, index) => (
               <Card 
                 key={index}
-                className="p-6 text-center bg-card/20 backdrop-blur-sm border-primary/10 hover:border-primary/30 transition-all duration-300 hover:shadow-card group"
+                className="p-6 bg-card/40 backdrop-blur-sm border-border/70 hover:border-primary/40 transition-all duration-300 hover:shadow-lg hover:shadow-primary/5 group"
               >
-                <div className="w-16 h-16 bg-gradient-primary rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
-                  <value.icon className="w-8 h-8 text-white" />
+                <div className="w-12 h-12 bg-primary/10 border border-primary/20 rounded-xl flex items-center justify-center mb-4 text-primary group-hover:scale-110 transition-transform">
+                  <item.icon className="w-6 h-6" />
                 </div>
-                <h4 className="text-xl font-semibold mb-3">{value.title}</h4>
-                <p className="text-muted-foreground text-sm leading-relaxed">{value.description}</p>
+                <h4 className="font-bold text-base mb-2 text-foreground group-hover:text-primary transition-colors">
+                  {item.title}
+                </h4>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {item.desc}
+                </p>
               </Card>
             ))}
           </div>
         </div>
+
       </div>
     </section>
   );

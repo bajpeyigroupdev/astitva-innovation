@@ -1,6 +1,10 @@
-import { Mail, Phone, MapPin } from "lucide-react";
+import { Mail, Phone, MapPin, ShieldCheck, CreditCard, ArrowUpRight } from "lucide-react";
 
-const Footer = () => {
+interface FooterProps {
+  onOpenLegal: (type: "privacy" | "terms" | "refund") => void;
+}
+
+export const Footer = ({ onOpenLegal }: FooterProps) => {
   const currentYear = new Date().getFullYear();
 
   const scrollToSection = (sectionId: string) => {
@@ -11,104 +15,234 @@ const Footer = () => {
   };
 
   return (
-    <footer className="py-12 border-t border-border">
+    <footer className="py-16 border-t border-border/60 bg-background relative overflow-hidden">
       <div className="container mx-auto px-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
-          {/* Company Info */}
-          <div className="md:col-span-2">
-            <div className="mb-4">
+        
+        {/* Main Footer Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 mb-12">
+          
+          {/* Company Column */}
+          <div className="lg:col-span-2 space-y-4">
+            <div 
+              className="cursor-pointer inline-block" 
+              onClick={() => scrollToSection("home")}
+            >
               <img
                 src="/astitva-logo.png"
                 alt="Astitva Innovation"
-                className="h-24 w-auto object-contain"
+                className="h-12 w-auto object-contain"
               />
             </div>
-            <p className="text-muted-foreground mb-4 leading-relaxed">
-              Transforming ideas into powerful digital experiences through innovative software solutions. 
-              We're your trusted partner in the digital transformation journey.
+            
+            <p className="text-xs md:text-sm text-muted-foreground leading-relaxed max-w-sm">
+              Astitva Innovation is an enterprise software engineering firm delivering resilient web platforms, native mobile apps, and bank-grade payment gateway infrastructures.
             </p>
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Mail className="w-4 h-4" />
-                hello@astitvainnovation.com
+
+            <div className="space-y-2.5 pt-2 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2.5">
+                <Mail className="w-4 h-4 text-primary shrink-0" />
+                <a href="mailto:contact@astitvainnovation.in" className="hover:text-primary transition-colors">
+                  contact@astitvainnovation.in
+                </a>
               </div>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Phone className="w-4 h-4" />
-                +1 (555) 123-4567
+              <div className="flex items-center gap-2.5">
+                <Mail className="w-4 h-4 text-accent shrink-0" />
+                <a href="mailto:sales@astitvainnovation.in" className="hover:text-accent transition-colors">
+                  sales@astitvainnovation.in
+                </a>
               </div>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <MapPin className="w-4 h-4" />
-                123 Innovation Street, Tech City, TC 12345
+              <div className="flex items-center gap-2.5">
+                <Phone className="w-4 h-4 text-emerald-400 shrink-0" />
+                <a href="tel:+919876543210" className="hover:text-foreground transition-colors">
+                  +91 98765 43210 (Engineering Desk)
+                </a>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <MapPin className="w-4 h-4 text-muted-foreground shrink-0" />
+                <span>Global Software Engineering Hub • India & Remote</span>
               </div>
             </div>
           </div>
 
+          {/* Solutions & Services */}
+          <div>
+            <h4 className="font-bold text-sm text-foreground mb-4">
+              Core Engineering
+            </h4>
+            <ul className="space-y-2.5 text-xs text-muted-foreground">
+              <li>
+                <button 
+                  onClick={() => scrollToSection("fintech")}
+                  className="hover:text-primary transition-colors text-left flex items-center gap-1 text-accent font-medium"
+                >
+                  <CreditCard className="w-3 h-3" />
+                  Payment Gateways (UPI/Cards)
+                </button>
+              </li>
+              <li>
+                <button 
+                  onClick={() => scrollToSection("services")}
+                  className="hover:text-primary transition-colors text-left"
+                >
+                  Enterprise SaaS & Web
+                </button>
+              </li>
+              <li>
+                <button 
+                  onClick={() => scrollToSection("services")}
+                  className="hover:text-primary transition-colors text-left"
+                >
+                  Mobile Apps (Flutter & iOS)
+                </button>
+              </li>
+              <li>
+                <button 
+                  onClick={() => scrollToSection("services")}
+                  className="hover:text-primary transition-colors text-left"
+                >
+                  Cloud DevOps & AWS Clusters
+                </button>
+              </li>
+              <li>
+                <button 
+                  onClick={() => scrollToSection("services")}
+                  className="hover:text-primary transition-colors text-left"
+                >
+                  AI Agents & Workflow Automations
+                </button>
+              </li>
+              <li>
+                <button 
+                  onClick={() => scrollToSection("pricing")}
+                  className="hover:text-primary transition-colors text-left"
+                >
+                  Dedicated Developer Squads
+                </button>
+              </li>
+            </ul>
+          </div>
+
           {/* Quick Links */}
           <div>
-            <h3 className="font-semibold mb-4">Quick Links</h3>
-            <ul className="space-y-2">
+            <h4 className="font-bold text-sm text-foreground mb-4">
+              Navigation
+            </h4>
+            <ul className="space-y-2.5 text-xs text-muted-foreground">
               <li>
-                <button
+                <button 
                   onClick={() => scrollToSection("home")}
-                  className="text-muted-foreground hover:text-primary transition-colors text-sm"
+                  className="hover:text-primary transition-colors text-left"
                 >
                   Home
                 </button>
               </li>
               <li>
-                <button
-                  onClick={() => scrollToSection("services")}
-                  className="text-muted-foreground hover:text-primary transition-colors text-sm"
+                <button 
+                  onClick={() => scrollToSection("calculator")}
+                  className="hover:text-primary transition-colors text-left"
                 >
-                  Services
+                  Project Cost Estimator
                 </button>
               </li>
               <li>
-                <button
-                  onClick={() => scrollToSection("about")}
-                  className="text-muted-foreground hover:text-primary transition-colors text-sm"
+                <button 
+                  onClick={() => scrollToSection("tech-stack")}
+                  className="hover:text-primary transition-colors text-left"
                 >
-                  About
+                  Technology Stack
                 </button>
               </li>
               <li>
-                <button
-                  onClick={() => scrollToSection("contact")}
-                  className="text-muted-foreground hover:text-primary transition-colors text-sm"
+                <button 
+                  onClick={() => scrollToSection("portfolio")}
+                  className="hover:text-primary transition-colors text-left"
                 >
-                  Contact
+                  Case Studies & Portfolio
+                </button>
+              </li>
+              <li>
+                <button 
+                  onClick={() => scrollToSection("process")}
+                  className="hover:text-primary transition-colors text-left"
+                >
+                  6-Step Agile Process
+                </button>
+              </li>
+              <li>
+                <button 
+                  onClick={() => scrollToSection("faq")}
+                  className="hover:text-primary transition-colors text-left"
+                >
+                  Enterprise FAQ
                 </button>
               </li>
             </ul>
           </div>
 
-          {/* Services */}
+          {/* Compliance & Legal (Merchant PG requirement) */}
           <div>
-            <h3 className="font-semibold mb-4">Services</h3>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li>Web Development</li>
-              <li>Mobile Apps</li>
-              <li>Cloud Solutions</li>
-              <li>Backend Development</li>
-              <li>Custom Software</li>
-              <li>UI/UX Design</li>
+            <h4 className="font-bold text-sm text-foreground mb-4">
+              Compliance & Legal
+            </h4>
+            <ul className="space-y-2.5 text-xs text-muted-foreground">
+              <li>
+                <button 
+                  onClick={() => onOpenLegal("privacy")}
+                  className="hover:text-primary transition-colors text-left flex items-center gap-1"
+                >
+                  Privacy Policy
+                </button>
+              </li>
+              <li>
+                <button 
+                  onClick={() => onOpenLegal("terms")}
+                  className="hover:text-primary transition-colors text-left flex items-center gap-1"
+                >
+                  Terms of Service
+                </button>
+              </li>
+              <li>
+                <button 
+                  onClick={() => onOpenLegal("refund")}
+                  className="hover:text-primary transition-colors text-left flex items-center gap-1"
+                >
+                  Refund & Cancellation Policy
+                </button>
+              </li>
+              <li className="pt-2 text-[11px] text-muted-foreground/70">
+                Official Domain: <a href="https://astitvainnovation.in" className="text-accent underline">astitvainnovation.in</a>
+              </li>
             </ul>
+
+            <div className="mt-4 p-3 rounded-lg bg-card/60 border border-border/80 text-[11px] text-muted-foreground flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>PCI-DSS & SSL Verified Architecture</span>
+            </div>
           </div>
+
         </div>
 
         {/* Bottom Bar */}
-        <div className="pt-8 border-t border-border">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-sm text-muted-foreground">
-              © {currentYear} Astitva Innovation. All rights reserved.
-            </p>
-            <div className="flex items-center gap-6 text-sm text-muted-foreground">
-              <button className="hover:text-primary transition-colors">Privacy Policy</button>
-              <button className="hover:text-primary transition-colors">Terms of Service</button>
-              <button className="hover:text-primary transition-colors">Cookie Policy</button>
-            </div>
+        <div className="pt-8 border-t border-border/60 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-muted-foreground">
+          <div>
+            © {currentYear} Astitva Innovation (astitvainnovation.in). All rights reserved.
+          </div>
+          <div className="flex items-center gap-6">
+            <button onClick={() => onOpenLegal("privacy")} className="hover:text-foreground transition-colors">
+              Privacy
+            </button>
+            <button onClick={() => onOpenLegal("terms")} className="hover:text-foreground transition-colors">
+              Terms
+            </button>
+            <button onClick={() => onOpenLegal("refund")} className="hover:text-foreground transition-colors">
+              Refunds
+            </button>
+            <a href="https://github.com/astitvainnovation" target="_blank" rel="noreferrer" className="hover:text-foreground transition-colors">
+              GitHub
+            </a>
           </div>
         </div>
+
       </div>
     </footer>
   );

@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { 
   Globe, 
   Smartphone, 
@@ -8,46 +9,70 @@ import {
   Database, 
   Palette,
   ArrowRight,
-  CheckCircle
+  CheckCircle2,
+  CreditCard,
+  Bot,
+  Layers,
+  Users
 } from "lucide-react";
 
-const Services = () => {
+export const Services = () => {
   const services = [
     {
+      icon: CreditCard,
+      highlight: "Specialized",
+      title: "Payment Gateway & FinTech Engineering",
+      description: "End-to-end integration and custom development of payment gateways including Razorpay, Stripe, Cashfree, UPI QR, and automated recurring billing engines.",
+      features: ["UPI Intent & Dynamic QR", "PCI-DSS Level 1 Compliance", "Multi-Gateway Auto-Routing", "Split Vendor Marketplace Payouts"],
+    },
+    {
       icon: Globe,
-      title: "Web Development",
-      description: "Custom web applications built with modern technologies like React, Next.js, and Node.js.",
-      features: ["Responsive Design", "SEO Optimized", "Fast Performance", "Modern UI/UX"],
+      highlight: "Core",
+      title: "Enterprise Web & SaaS Platforms",
+      description: "Scalable, high-velocity cloud web applications and multi-tenant SaaS architectures built with Next.js, React, Node.js, and serverless edge rendering.",
+      features: ["Next.js Server Actions & SSR", "Multi-Tenant Architecture", "RBAC User Permissions", "Automated Subscriptions"],
     },
     {
       icon: Smartphone,
-      title: "Mobile App Development",
-      description: "Native and cross-platform mobile apps for iOS and Android that deliver exceptional user experiences.",
-      features: ["React Native", "Flutter", "Native iOS/Android", "Cross-Platform"],
+      highlight: "Popular",
+      title: "Mobile App Development (iOS & Android)",
+      description: "60fps native and cross-platform mobile apps using Flutter and React Native, engineered with offline-first synchronization and biometric security.",
+      features: ["Flutter & React Native", "App Store & Play Store Launch", "Real-Time Push Notifications", "In-App Purchases & UPI"],
     },
     {
       icon: Cloud,
-      title: "Cloud Solutions",
-      description: "Scalable cloud infrastructure and deployment solutions using AWS, Google Cloud, and Azure.",
-      features: ["Cloud Migration", "DevOps", "Auto Scaling", "Cost Optimization"],
+      highlight: "DevOps",
+      title: "Cloud Infrastructure & DevOps",
+      description: "Resilient cloud architectures on AWS, GCP, and DigitalOcean. We implement automated CI/CD pipelines, Docker containers, and Kubernetes auto-scaling.",
+      features: ["AWS / GCP Architectures", "Docker & Kubernetes Clusters", "Zero-Downtime Rolling Deploys", "Automated Daily Backups"],
     },
     {
-      icon: Database,
-      title: "Backend Development",
-      description: "Robust backend systems with APIs, databases, and server-side logic for your applications.",
-      features: ["REST APIs", "GraphQL", "Database Design", "Security"],
+      icon: Bot,
+      highlight: "AI Tech",
+      title: "AI Integrations & Workflow Automation",
+      description: "Supercharge your business operations with custom AI agents, OpenAI/Anthropic LLM API integrations, intelligent chatbots, and predictive algorithms.",
+      features: ["Custom AI Agent Workflows", "OpenAI / Claude LLM Pipelines", "Intelligent Support Chatbots", "Automated Data Processing"],
     },
     {
-      icon: Code,
-      title: "Custom Software",
-      description: "Tailored software solutions designed specifically for your business needs and workflows.",
-      features: ["Enterprise Solutions", "System Integration", "Automation", "Maintenance"],
+      icon: Layers,
+      highlight: "APIs",
+      title: "Custom API & System Integrations",
+      description: "High-throughput REST and GraphQL microservice APIs connecting CRM, ERP, accounting software, SMS/WhatsApp gateways, and banking webhooks.",
+      features: ["REST & GraphQL Microservices", "Banking & Accounting Integrations", "Idempotent Webhook Handlers", "Real-time WebSockets"],
     },
     {
       icon: Palette,
-      title: "UI/UX Design",
-      description: "Beautiful, intuitive designs that create engaging user experiences and drive conversions.",
-      features: ["User Research", "Prototyping", "Design Systems", "Usability Testing"],
+      highlight: "Design",
+      title: "UI/UX Strategy & Design Systems",
+      description: "Data-driven UI/UX design, interactive Figma prototypes, comprehensive design tokens, and user journey optimization engineered to maximize conversions.",
+      features: ["Clickable Figma Prototypes", "Custom Design Tokens & Systems", "Conversion Rate Optimization", "WCAG Accessibility Compliant"],
+    },
+    {
+      icon: Users,
+      highlight: "Staffing",
+      title: "Dedicated IT Staff Augmentation",
+      description: "Scale your internal engineering team quickly with senior pre-vetted full-stack developers, mobile engineers, and DevOps architects on flexible retainers.",
+      features: ["Pre-Vetted Senior Engineers", "Direct Slack/Teams Integration", "Flexible Month-to-Month Retainers", "Zero Recruitment Friction"],
     },
   ];
 
@@ -59,74 +84,91 @@ const Services = () => {
   };
 
   return (
-    <section id="services" className="py-20 bg-gradient-secondary">
+    <section id="services" className="py-24 bg-card/20 relative border-t border-border/40">
       <div className="container mx-auto px-4">
+        
         {/* Header */}
-        <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-5xl font-bold mb-6">
-            Our <span className="bg-gradient-primary bg-clip-text text-transparent">Services</span>
+        <div className="max-w-3xl mx-auto text-center mb-16">
+          <Badge variant="outline" className="px-4 py-1.5 mb-4 text-xs font-semibold tracking-wider uppercase border-primary/40 bg-primary/10 text-primary">
+            End-to-End Capabilities
+          </Badge>
+          <h2 className="text-3xl md:text-5xl font-extrabold tracking-tight mb-4">
+            Comprehensive <span className="bg-gradient-primary bg-clip-text text-transparent">Software Solutions</span>
           </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            We offer comprehensive software development services to bring your digital vision to life
+          <p className="text-lg text-muted-foreground">
+            From specialized payment gateway engineering to full-cycle digital transformation, we deliver software built for high throughput and security.
           </p>
         </div>
 
         {/* Services Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
           {services.map((service, index) => (
             <Card 
               key={index} 
-              className="p-6 bg-card/50 backdrop-blur-sm border-primary/10 hover:border-primary/30 transition-all duration-300 hover:shadow-card group"
+              className="p-6 bg-card/50 backdrop-blur-sm border-border/70 hover:border-primary/40 transition-all duration-300 hover:shadow-xl hover:shadow-primary/5 group flex flex-col justify-between"
             >
-              <div className="flex items-center gap-4 mb-4">
-                <div className="w-12 h-12 bg-gradient-primary rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                  <service.icon className="w-6 h-6 text-white" />
-                </div>
-                <h3 className="text-xl font-semibold">{service.title}</h3>
-              </div>
-              
-              <p className="text-muted-foreground mb-6 leading-relaxed">
-                {service.description}
-              </p>
-
-              <div className="space-y-2 mb-6">
-                {service.features.map((feature, featureIndex) => (
-                  <div key={featureIndex} className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-accent" />
-                    <span className="text-sm text-muted-foreground">{feature}</span>
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-12 h-12 bg-primary/10 border border-primary/20 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 text-primary">
+                    <service.icon className="w-6 h-6" />
                   </div>
-                ))}
+                  <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full bg-secondary text-muted-foreground border border-border">
+                    {service.highlight}
+                  </span>
+                </div>
+                
+                <h3 className="text-lg font-bold mb-2.5 text-foreground group-hover:text-primary transition-colors">
+                  {service.title}
+                </h3>
+                
+                <p className="text-xs text-muted-foreground mb-6 leading-relaxed">
+                  {service.description}
+                </p>
+
+                <div className="space-y-2 mb-6 pt-4 border-t border-border/60">
+                  {service.features.map((feature, featureIndex) => (
+                    <div key={featureIndex} className="flex items-center gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-accent shrink-0" />
+                      <span className="text-xs text-muted-foreground">{feature}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <Button 
                 variant="outline" 
-                className="w-full group-hover:bg-primary/10"
+                size="sm"
+                className="w-full text-xs group-hover:bg-primary/10 group-hover:border-primary/30"
                 onClick={scrollToContact}
               >
-                Learn More
-                <ArrowRight className="w-4 h-4 ml-2" />
+                Discuss Project
+                <ArrowRight className="w-3.5 h-3.5 ml-2" />
               </Button>
             </Card>
           ))}
         </div>
 
-        {/* CTA Section */}
-        <div className="text-center">
-          <div className="bg-card/30 backdrop-blur-sm border border-primary/20 rounded-2xl p-8 max-w-2xl mx-auto">
-            <h3 className="text-2xl font-bold mb-4">Ready to Start Your Project?</h3>
-            <p className="text-muted-foreground mb-6">
-              Let's discuss how we can help bring your software vision to life
-            </p>
+        {/* CTA Card */}
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-gradient-to-r from-card/80 via-card/60 to-card/80 backdrop-blur-md border border-primary/30 rounded-2xl p-8 md:p-10 flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl">
+            <div>
+              <h3 className="text-2xl font-bold mb-2">Have a custom technical challenge?</h3>
+              <p className="text-sm text-muted-foreground">
+                Our principal software architects are available for a 30-minute free technical discovery call.
+              </p>
+            </div>
             <Button 
               variant="hero" 
               size="lg"
               onClick={scrollToContact}
+              className="shrink-0 whitespace-nowrap"
             >
-              Get Free Consultation
-              <ArrowRight className="w-5 h-5 ml-2" />
+              Book Technical Consultation
+              <ArrowRight className="w-4 h-4 ml-2" />
             </Button>
           </div>
         </div>
+
       </div>
     </section>
   );

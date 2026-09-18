@@ -1,30 +1,51 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { 
   Mail, 
   Phone, 
   MapPin, 
   Send,
-  Clock,
-  Globe,
-  MessageCircle
+  Clock, 
+  MessageSquare, 
+  ShieldCheck, 
+  CheckCircle2,
+  Sparkles,
+  ExternalLink
 } from "lucide-react";
 
-const Contact = () => {
+interface ContactProps {
+  prefilledScope?: string;
+}
+
+export const Contact = ({ prefilledScope }: ContactProps) => {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
-    subject: "",
+    phone: "",
+    service: "FinTech & Payment Gateway",
+    budget: "₹1,50,000 - ₹5,00,000",
     message: ""
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  useEffect(() => {
+    if (prefilledScope) {
+      setFormData(prev => ({
+        ...prev,
+        message: prev.message 
+          ? `${prev.message}\n\n[Project Scope Calculator Estimate]:\n${prefilledScope}` 
+          : `[Project Scope Calculator Estimate]:\n${prefilledScope}`
+      }));
+    }
+  }, [prefilledScope]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
@@ -36,18 +57,20 @@ const Contact = () => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    // Simulate form submission
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Simulate submission
+    await new Promise(resolve => setTimeout(resolve, 900));
 
     toast({
-      title: "Message Sent Successfully!",
-      description: "Thank you for contacting us. We'll get back to you within 24 hours.",
+      title: "Inquiry Received Successfully!",
+      description: "Our Technical Director will review your project scope and contact you within 2 business hours.",
     });
 
     setFormData({
       name: "",
       email: "",
-      subject: "",
+      phone: "",
+      service: "FinTech & Payment Gateway",
+      budget: "₹1,50,000 - ₹5,00,000",
       message: ""
     });
     setIsSubmitting(false);
@@ -56,99 +79,114 @@ const Contact = () => {
   const contactInfo = [
     {
       icon: Mail,
-      title: "Email Us",
-      description: "hello@astitvainnovation.com",
-      action: "mailto:hello@astitvainnovation.com"
+      title: "General Inquiries",
+      detail: "contact@astitvainnovation.in",
+      sub: "Average reply time: < 2 hours",
+      action: "mailto:contact@astitvainnovation.in"
     },
     {
-      icon: Phone,
-      title: "Call Us",
-      description: "+1 (555) 123-4567",
-      action: "tel:+15551234567"
+      icon: Mail,
+      title: "Enterprise Sales",
+      detail: "sales@astitvainnovation.in",
+      sub: "For RFPs, contracts & SOWs",
+      action: "mailto:sales@astitvainnovation.in"
     },
     {
-      icon: MapPin,
-      title: "Visit Us",
-      description: "123 Innovation Street, Tech City, TC 12345",
-      action: "#"
+      icon: MessageSquare,
+      title: "WhatsApp Engineering Desk",
+      detail: "+91 98765 43210",
+      sub: "Instant technical chat support",
+      action: "https://wa.me/919876543210?text=Hi%20Astitva%20Innovation,%20I%20would%20like%20to%20discuss%20a%20software%20project."
     },
     {
       icon: Clock,
-      title: "Business Hours",
-      description: "Mon - Fri: 9AM - 6PM",
+      title: "Engineering Hours",
+      detail: "Mon - Sat: 9:30 AM - 7:30 PM IST",
+      sub: "24/7 SLA for emergency incidents",
       action: "#"
     }
   ];
 
   return (
-    <section id="contact" className="py-20 bg-gradient-secondary">
+    <section id="contact" className="py-24 bg-card/20 relative border-t border-border/40">
       <div className="container mx-auto px-4">
+        
         {/* Header */}
-        <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-5xl font-bold mb-6">
-            Get In <span className="bg-gradient-primary bg-clip-text text-transparent">Touch</span>
+        <div className="max-w-3xl mx-auto text-center mb-16">
+          <Badge variant="outline" className="px-4 py-1.5 mb-4 text-xs font-semibold tracking-wider uppercase border-accent/40 bg-accent/10 text-accent">
+            Start Your Project
+          </Badge>
+          <h2 className="text-3xl md:text-5xl font-extrabold tracking-tight mb-4">
+            Request an Architecture Review & <span className="bg-gradient-primary bg-clip-text text-transparent">Quote</span>
           </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Ready to start your next project? Let's discuss how we can bring your vision to life
+          <p className="text-lg text-muted-foreground">
+            Connect directly with our senior software architects. Receive a detailed proposal, timeline breakdown, and tech stack consultation within 24 hours.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-          {/* Contact Info */}
-          <div className="lg:col-span-1">
-            <div className="space-y-6">
-              <div className="flex items-center gap-3 mb-8">
-                <div className="w-12 h-12 bg-gradient-primary rounded-lg flex items-center justify-center">
-                  <MessageCircle className="w-6 h-6 text-white" />
-                </div>
-                <h3 className="text-2xl font-bold">Let's Talk</h3>
-              </div>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 max-w-6xl mx-auto items-start">
+          
+          {/* Left Column: Direct channels */}
+          <div className="lg:col-span-5 space-y-4">
+            <div className="p-6 rounded-2xl bg-card/60 border border-border/70 backdrop-blur-sm space-y-4">
+              <h3 className="text-xl font-bold text-foreground">
+                Let's Build Something Exceptional
+              </h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Whether you need a full-scale FinTech payment integration, custom SaaS platform, or dedicated engineering squad, we are ready to accelerate your delivery.
+              </p>
 
-              {contactInfo.map((info, index) => (
-                <Card 
-                  key={index}
-                  className="p-6 bg-card/30 backdrop-blur-sm border-primary/10 hover:border-primary/30 transition-all duration-300 group cursor-pointer"
-                  onClick={() => {
-                    if (info.action.startsWith('mailto:') || info.action.startsWith('tel:')) {
-                      window.location.href = info.action;
-                    }
-                  }}
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-gradient-primary rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                      <info.icon className="w-5 h-5 text-white" />
+              <div className="pt-2 space-y-3">
+                {contactInfo.map((info, idx) => (
+                  <div
+                    key={idx}
+                    onClick={() => {
+                      if (info.action && info.action !== "#") {
+                        window.open(info.action, "_blank");
+                      }
+                    }}
+                    className="p-3.5 rounded-xl bg-background/50 border border-border/60 hover:border-primary/40 transition-all cursor-pointer group flex items-start gap-3"
+                  >
+                    <div className="w-9 h-9 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary group-hover:scale-105 transition-transform shrink-0">
+                      <info.icon className="w-4 h-4" />
                     </div>
                     <div>
-                      <h4 className="font-semibold mb-1">{info.title}</h4>
-                      <p className="text-muted-foreground text-sm">{info.description}</p>
+                      <div className="text-xs font-semibold text-foreground group-hover:text-primary transition-colors">
+                        {info.title}
+                      </div>
+                      <div className="text-xs font-mono text-accent mt-0.5">
+                        {info.detail}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5">
+                        {info.sub}
+                      </div>
                     </div>
                   </div>
-                </Card>
-              ))}
+                ))}
+              </div>
+            </div>
 
-              {/* Social Links */}
-              <Card className="p-6 bg-card/30 backdrop-blur-sm border-primary/10">
-                <h4 className="font-semibold mb-4 flex items-center gap-2">
-                  <Globe className="w-5 h-5 text-primary" />
-                  Follow Us
-                </h4>
-                <div className="flex gap-3">
-                  <Button variant="outline" size="sm">LinkedIn</Button>
-                  <Button variant="outline" size="sm">Twitter</Button>
-                  <Button variant="outline" size="sm">GitHub</Button>
-                </div>
-              </Card>
+            {/* Guarantees Box */}
+            <div className="p-5 rounded-xl bg-primary/5 border border-primary/20 text-xs space-y-2 text-muted-foreground">
+              <div className="flex items-center gap-2 font-semibold text-foreground">
+                <ShieldCheck className="w-4 h-4 text-primary" />
+                <span>Confidentiality Guaranteed</span>
+              </div>
+              <p className="text-[11px]">
+                Your intellectual property is protected by strict Non-Disclosure Agreements. We never share your project specs or business ideas.
+              </p>
             </div>
           </div>
 
-          {/* Contact Form */}
-          <div className="lg:col-span-2">
-            <Card className="p-8 bg-card/30 backdrop-blur-sm border-primary/10">
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Right Column: Inquiry Form */}
+          <div className="lg:col-span-7">
+            <Card className="p-6 md:p-8 bg-card/80 backdrop-blur-md border border-border/70 shadow-2xl rounded-2xl">
+              <form onSubmit={handleSubmit} className="space-y-5">
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="name" className="block text-sm font-medium mb-2">
-                      Full Name *
+                    <label htmlFor="name" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+                      Your Name *
                     </label>
                     <Input
                       id="name"
@@ -157,13 +195,14 @@ const Contact = () => {
                       required
                       value={formData.name}
                       onChange={handleInputChange}
-                      className="bg-background/50"
-                      placeholder="Your full name"
+                      placeholder="e.g. Rahul Sharma"
+                      className="bg-background/60 border-border/80 text-xs h-11"
                     />
                   </div>
+
                   <div>
-                    <label htmlFor="email" className="block text-sm font-medium mb-2">
-                      Email Address *
+                    <label htmlFor="email" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+                      Business Email *
                     </label>
                     <Input
                       id="email"
@@ -172,40 +211,80 @@ const Contact = () => {
                       required
                       value={formData.email}
                       onChange={handleInputChange}
-                      className="bg-background/50"
-                      placeholder="your.email@example.com"
+                      placeholder="name@company.com"
+                      className="bg-background/60 border-border/80 text-xs h-11"
                     />
                   </div>
                 </div>
 
-                <div>
-                  <label htmlFor="subject" className="block text-sm font-medium mb-2">
-                    Subject *
-                  </label>
-                  <Input
-                    id="subject"
-                    name="subject"
-                    type="text"
-                    required
-                    value={formData.subject}
-                    onChange={handleInputChange}
-                    className="bg-background/50"
-                    placeholder="What's this about?"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="phone" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+                      Phone / WhatsApp Number
+                    </label>
+                    <Input
+                      id="phone"
+                      name="phone"
+                      type="tel"
+                      value={formData.phone}
+                      onChange={handleInputChange}
+                      placeholder="+91 98765 43210"
+                      className="bg-background/60 border-border/80 text-xs h-11"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="service" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+                      Primary Service Needed
+                    </label>
+                    <select
+                      id="service"
+                      name="service"
+                      value={formData.service}
+                      onChange={handleInputChange}
+                      className="w-full h-11 px-3 rounded-md bg-background/60 border border-border/80 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      <option value="FinTech & Payment Gateway">FinTech & Payment Gateway Integration</option>
+                      <option value="Custom Web & SaaS Platform">Custom Web & SaaS Platform</option>
+                      <option value="Mobile App (iOS & Android)">Mobile App (iOS & Android)</option>
+                      <option value="Cloud DevOps & Microservices">Cloud DevOps & Microservices</option>
+                      <option value="AI Agent & LLM Automation">AI Agent & LLM Automation</option>
+                      <option value="Dedicated Developer Squad">Dedicated Developer Squad</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div>
-                  <label htmlFor="message" className="block text-sm font-medium mb-2">
-                    Message *
+                  <label htmlFor="budget" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+                    Estimated Budget Tier
+                  </label>
+                  <select
+                    id="budget"
+                    name="budget"
+                    value={formData.budget}
+                    onChange={handleInputChange}
+                    className="w-full h-11 px-3 rounded-md bg-background/60 border border-border/80 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="₹50,000 - ₹1,50,000">₹50,000 - ₹1,50,000 (Rapid MVP / Module)</option>
+                    <option value="₹1,50,000 - ₹5,00,000">₹1,50,000 - ₹5,00,000 (Complete Web/Mobile Product)</option>
+                    <option value="₹5,00,000 - ₹15,00,000">₹5,00,000 - ₹15,00,000 (Enterprise / FinTech Engine)</option>
+                    <option value="₹15,00,000+">₹15,00,000+ (High-Scale Multi-Platform)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="message" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+                    Project Overview / Technical Requirements *
                   </label>
                   <Textarea
                     id="message"
                     name="message"
                     required
+                    rows={4}
                     value={formData.message}
                     onChange={handleInputChange}
-                    className="bg-background/50 min-h-[120px]"
-                    placeholder="Tell us about your project..."
+                    placeholder="Describe your product idea, required features (e.g. payment gateway, user auth), or specific timeline..."
+                    className="bg-background/60 border-border/80 text-xs resize-none"
                   />
                 </div>
 
@@ -214,50 +293,37 @@ const Contact = () => {
                   variant="hero"
                   size="lg"
                   disabled={isSubmitting}
-                  className="w-full"
+                  className="w-full py-6 text-sm font-semibold"
                 >
                   {isSubmitting ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                      Sending Message...
+                      Dispatching Scope to Solutions Architect...
                     </>
                   ) : (
                     <>
-                      Send Message
-                      <Send className="w-5 h-5 ml-2" />
+                      <Send className="w-4 h-4 mr-2" />
+                      Submit Project Scope for Review
                     </>
                   )}
                 </Button>
+
+                <div className="flex items-center justify-center gap-4 text-[11px] text-muted-foreground pt-1">
+                  <span className="flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-accent" /> No Obligation
+                  </span>
+                  <span>•</span>
+                  <span className="flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-accent" /> Free Architecture Consultation
+                  </span>
+                </div>
+
               </form>
             </Card>
           </div>
+
         </div>
 
-        {/* Additional CTA */}
-        <div className="text-center mt-16">
-          <div className="bg-card/20 backdrop-blur-sm border border-primary/20 rounded-2xl p-8 max-w-3xl mx-auto">
-            <h3 className="text-2xl font-bold mb-4">Need Immediate Assistance?</h3>
-            <p className="text-muted-foreground mb-6">
-              For urgent inquiries, feel free to call us directly or schedule a consultation
-            </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Button 
-                variant="cta" 
-                size="lg"
-                onClick={() => window.location.href = 'tel:+15551234567'}
-              >
-                <Phone className="w-5 h-5 mr-2" />
-                Call Now
-              </Button>
-              <Button 
-                variant="outline" 
-                size="lg"
-              >
-                Schedule Consultation
-              </Button>
-            </div>
-          </div>
-        </div>
       </div>
     </section>
   );
