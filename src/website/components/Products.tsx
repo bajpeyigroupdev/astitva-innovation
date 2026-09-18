@@ -11,7 +11,6 @@ import {
   ShieldAlert, 
   Sparkles, 
   HeartHandshake,
-  Star,
   ExternalLink,
   Smartphone,
   CheckCircle2
@@ -104,6 +103,8 @@ export const Products = () => {
                     <img 
                       src="/meethi-chat-icon.png" 
                       alt="Meethi Chat App Icon - Social Voice & Friendship Platform" 
+                      width="96"
+                      height="96"
                       className="w-full h-full object-cover rounded-xl transition-transform duration-300 group-hover:scale-105"
                       loading="lazy"
                     />
@@ -119,19 +120,19 @@ export const Products = () => {
                       Official Flagship App
                     </span>
                     <span className="text-xs font-mono px-2.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
-                      Social Voice & Friendship Platform
+                      Social Voice &amp; Friendship Platform
                     </span>
-                    <span className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 font-semibold border border-amber-500/20">
-                      <Star className="w-3 h-3 fill-amber-400 text-amber-400" /> 4.8 Rating
+                    <span className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-semibold border border-emerald-500/20">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Official Release
                     </span>
                   </div>
 
                   <h3 className="text-2xl md:text-4xl font-extrabold text-foreground tracking-tight">
-                    Meethi Chat
+                    Meethi Chat <span className="text-xl md:text-3xl font-semibold text-muted-foreground">— Social Voice &amp; Friendship Platform</span>
                   </h3>
                   
                   <p className="text-xs md:text-sm text-muted-foreground mt-1">
-                    Developed & Published by <span className="text-foreground font-semibold">Astitva Innovation</span> • Package: <code className="font-mono text-accent">com.umangchatlive</code>
+                    Developed &amp; Published by <span className="text-foreground font-semibold">Astitva Innovation</span> • Package: <code className="font-mono text-accent">com.umangchatlive</code>
                   </p>
                 </div>
               </div>
@@ -143,7 +144,7 @@ export const Products = () => {
                   target="_blank"
                   rel="noopener noreferrer"
                   className="group inline-flex items-center justify-center gap-3.5 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-zinc-900 via-neutral-900 to-black text-white border border-neutral-700 hover:border-emerald-500/60 shadow-xl hover:shadow-emerald-500/10 transition-all duration-300"
-                  aria-label="Get Meethi Chat on Google Play Store"
+                  aria-label="Download Meethi Chat on Google Play Store - Social Voice and Friendship Platform"
                 >
                   <svg className="w-6 h-6 shrink-0 transition-transform group-hover:scale-110" viewBox="0 0 24 24" fill="none">
                     <path d="M3.609 1.814L13.793 12 3.61 22.186c-.347-.282-.57-.704-.57-1.186V3c0-.482.223-.904.57-1.186z" fill="#00D2FF"/>

@@ -29,8 +29,11 @@ export const Footer = ({ onOpenLegal }: FooterProps) => {
             >
               <img
                 src="/astitva-logo.png"
-                alt="Astitva Innovation"
+                alt="Astitva Innovation - Technology, Software &amp; Digital Solutions"
+                width="180"
+                height="48"
                 className="h-12 w-auto object-contain"
+                loading="lazy"
               />
             </div>
             

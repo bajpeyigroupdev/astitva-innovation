@@ -38,7 +38,9 @@ export const Header = () => {
           >
             <img
               src="/astitva-logo.png"
-              alt="Astitva Innovation"
+              alt="Astitva Innovation - Technology, Software &amp; Digital Solutions"
+              width="180"
+              height="48"
               className="h-10 md:h-12 w-auto object-contain transition-transform group-hover:scale-105"
             />
           </div>

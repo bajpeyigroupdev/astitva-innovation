@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import Header from "../components/Header";
 import Hero from "../components/Hero";
 import PaymentSolutions from "../components/PaymentSolutions";
@@ -16,8 +17,33 @@ import Footer from "../components/Footer";
 import LegalModals from "../components/LegalModals";
 
 export const HomePage = () => {
+  const location = useLocation();
   const [calculatorScope, setCalculatorScope] = useState<string>("");
   const [legalModalType, setLegalModalType] = useState<"privacy" | "terms" | "refund" | null>(null);
+
+  useEffect(() => {
+    const pathToIdMap: Record<string, string> = {
+      "/services": "services",
+      "/products": "products",
+      "/fintech": "fintech",
+      "/case-studies": "portfolio",
+      "/contact": "contact",
+    };
+
+    if (location.hash) {
+      const targetId = location.hash.replace("#", "");
+      const el = document.getElementById(targetId);
+      if (el) {
+        setTimeout(() => el.scrollIntoView({ behavior: "smooth" }), 80);
+      }
+    } else if (pathToIdMap[location.pathname]) {
+      const targetId = pathToIdMap[location.pathname];
+      const el = document.getElementById(targetId);
+      if (el) {
+        setTimeout(() => el.scrollIntoView({ behavior: "smooth" }), 80);
+      }
+    }
+  }, [location.pathname, location.hash]);
 
   const handleSelectScope = (scopeDetails: string) => {
     setCalculatorScope(scopeDetails);

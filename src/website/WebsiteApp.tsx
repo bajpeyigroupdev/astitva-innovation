@@ -7,6 +7,7 @@ export const WebsiteApp = () => {
     <Routes>
       <Route path="/" element={<HomePage />} />
       <Route path="/services" element={<HomePage />} />
+      <Route path="/products" element={<HomePage />} />
       <Route path="/fintech" element={<HomePage />} />
       <Route path="/case-studies" element={<HomePage />} />
       <Route path="/contact" element={<HomePage />} />
