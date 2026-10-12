@@ -19,4 +19,9 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT }}
-          script: /www/wwwroot/deploy-astitva.sh
+          script: |
+            echo "=== INSPECTING DEPLOY SCRIPT ==="
+            cat /www/wwwroot/deploy-astitva.sh
+            echo "=== INSPECTING WWWROOT ==="
+            ls -la /www/wwwroot
+
