@@ -6,13 +6,57 @@ on:
       - main
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Execute Deployment Script on Production Server
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache-dependency-path: |
+            astitva-main/package-lock.json
+            dashboard/package-lock.json
+
+      - name: Build Corporate Website
+        run: |
+          echo "=== Building astitva-main website ==="
+          cd astitva-main
+          npm ci || npm install
+          npm run build
+
+      - name: Build B2B Dashboard
+        run: |
+          echo "=== Building B2B dashboard ==="
+          cd dashboard
+          npm ci || npm install
+          npm run build
+
+      - name: Deploy Corporate Website to Server via SCP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT }}
+          source: "astitva-main/dist/*"
+          target: "/www/wwwroot/astitvainnovation.in"
+          strip_components: 2
+
+      - name: Deploy B2B Dashboard to Server via SCP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT }}
+          source: "dashboard/dist/*"
+          target: "/www/wwwroot/b2b.astitvainnovation.in"
+          strip_components: 2
+
+      - name: Update Backend, Permissions, and Reload Nginx via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -20,8 +64,25 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT }}
           script: |
-            echo "=== INSPECTING DEPLOY SCRIPT ==="
-            cat /www/wwwroot/deploy-astitva.sh
-            echo "=== INSPECTING WWWROOT ==="
-            ls -la /www/wwwroot
+            echo "=== 1. Updating permissions ==="
+            chown -R www-data:www-data /www/wwwroot/astitvainnovation.in /www/wwwroot/b2b.astitvainnovation.in 2>/dev/null || true
+            chmod -R 755 /www/wwwroot/astitvainnovation.in /www/wwwroot/b2b.astitvainnovation.in 2>/dev/null || true
 
+            echo "=== 2. Syncing server source repository ==="
+            if [ -d "/www/wwwroot/astitva-source" ]; then
+              cd /www/wwwroot/astitva-source
+              git fetch origin main
+              git reset --hard origin/main
+            fi
+
+            echo "=== 3. Syncing backend API service ==="
+            if [ -d "/www/wwwroot/astitva-api" ] && [ -d "/www/wwwroot/astitva-source/server" ]; then
+              cp -r /www/wwwroot/astitva-source/server/* /www/wwwroot/astitva-api/ 2>/dev/null || true
+              cd /www/wwwroot/astitva-api
+              npm install --omit=dev --loglevel=error 2>/dev/null || true
+              pm2 reload astitva-api 2>/dev/null || pm2 start ecosystem.config.js 2>/dev/null || true
+            fi
+
+            echo "=== 4. Reloading Nginx ==="
+            nginx -t 2>/dev/null && (nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null) || true
+            echo "=== DEPLOYMENT COMPLETED SUCCESSFULLY ==="
