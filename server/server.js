@@ -177,6 +177,122 @@ const initialSeed = {
       order: 2,
       enabled: true
     }
+  ],
+  jobs: [
+    {
+      id: "job-fullstack-01",
+      title: "Senior Full-Stack Architect (Node.js & React)",
+      department: "Engineering",
+      location: "Remote / Hybrid",
+      type: "Full-Time",
+      experience: "3 - 6 Years",
+      salary: "₹12,00,000 - ₹24,00,000 LPA",
+      description: "Architect, develop, and scale high-concurrency microservices, FinTech payment routing integrations, and responsive administrative web applications.",
+      requirements: [
+        "Deep expertise in TypeScript, Node.js, Express, and React",
+        "Strong experience with Redis caching, PostgreSQL / MongoDB, and real-time WebSockets",
+        "Hands-on background with Docker, Nginx reverse proxying, and cloud deployments",
+        "Understanding of payment gateway lifecycles (Razorpay, Cashfree, Stripe) and webhook idempotency"
+      ],
+      benefits: [
+        "High-ownership engineering culture",
+        "Flexible remote work hours",
+        "Performance equity incentives",
+        "Direct collaboration with founding architects"
+      ],
+      status: "Active",
+      enabled: true,
+      createdAt: new Date().toISOString()
+    },
+    {
+      id: "job-mobile-02",
+      title: "React Native / Mobile Engineer (Audio & WebRTC)",
+      department: "Mobile Engineering",
+      location: "Remote",
+      type: "Full-Time",
+      experience: "2 - 5 Years",
+      salary: "₹10,00,000 - ₹20,00,000 LPA",
+      description: "Develop, optimize, and ship high-performance features for flagship voice social platform Meethi Chat, managing low-latency audio streams and native device bridges.",
+      requirements: [
+        "Demonstrated mastery of React Native / Android Native bridging",
+        "Experience with WebRTC audio streams, InCallManager, and background socket lifecycles",
+        "State management proficiency (Redux / Context / Zustand)",
+        "Proven track record of deploying polished apps to Google Play Console"
+      ],
+      benefits: [
+        "Shape social voice technology impacting thousands of daily active users",
+        "Modern hardware budget & remote allowance",
+        "Direct product roadmap influence"
+      ],
+      status: "Active",
+      enabled: true,
+      createdAt: new Date().toISOString()
+    },
+    {
+      id: "job-devops-03",
+      title: "DevOps & Cloud Security Specialist",
+      department: "Infrastructure",
+      location: "Remote",
+      type: "Full-Time",
+      experience: "3 - 5 Years",
+      salary: "₹14,00,000 - ₹26,00,000 LPA",
+      description: "Lead production cloud infrastructure, automated GitHub Actions CI/CD pipelines, SSL automation, and bank-grade application firewalls.",
+      requirements: [
+        "Advanced Linux server administration (Ubuntu / Debian)",
+        "GitHub Actions CI/CD automation and container orchestration (Docker)",
+        "Nginx virtual host security, rate limiting, and Let's Encrypt Certbot",
+        "System telemetry, PM2 cluster management, and DDoS mitigation strategies"
+      ],
+      benefits: [
+        "Ownership over high-availability infrastructure",
+        "Cloud experimentation budget",
+        "Autonomous engineering schedules"
+      ],
+      status: "Active",
+      enabled: true,
+      createdAt: new Date().toISOString()
+    },
+    {
+      id: "job-uiux-04",
+      title: "Lead Product & UI/UX Designer",
+      department: "Design & Product",
+      location: "Remote",
+      type: "Full-Time",
+      experience: "2 - 4 Years",
+      salary: "₹8,00,000 - ₹16,00,000 LPA",
+      description: "Design futuristic, ultra-polished, and intuitive user experiences for enterprise B2B panels, corporate showcases, and mobile consumer apps.",
+      requirements: [
+        "Mastery of Figma, modern design tokens, auto-layout, and clickable prototypes",
+        "Exceptional eye for typography, glassmorphism, dark-mode aesthetics, and micro-interactions",
+        "Experience collaborating directly with frontend engineers for pixel-perfect execution"
+      ],
+      benefits: [
+        "Design-led product decisions",
+        "Portfolio freedom on major releases",
+        "Flexible working arrangement"
+      ],
+      status: "Active",
+      enabled: true,
+      createdAt: new Date().toISOString()
+    }
+  ],
+  jobApplications: [
+    {
+      id: "APP-2026-101",
+      jobId: "job-fullstack-01",
+      jobTitle: "Senior Full-Stack Architect (Node.js & React)",
+      name: "Aditya Verma",
+      email: "aditya.verma@example.com",
+      phone: "+91 98765 43210",
+      experience: "4.5 Years",
+      currentCompany: "TechScale Systems",
+      resumeUrl: "https://drive.google.com/file/d/sample-resume-aditya/view",
+      portfolioUrl: "https://github.com/aditya-dev",
+      coverNote: "Experienced in building high-throughput microservices and React dashboards with WebSockets. Looking forward to engineering scalable products at Astitva Innovation.",
+      status: "Under Review",
+      adminNotes: "Solid background in WebSockets, Redis caching, and Node.js. Recommended for technical interview.",
+      appliedAt: new Date(Date.now() - 24 * 3600000).toISOString()
+    }
   ]
 };
 
@@ -254,6 +370,14 @@ function getDb() {
     }
     if (!data.founders || !Array.isArray(data.founders)) {
       data.founders = initialSeed.founders;
+      modified = true;
+    }
+    if (!data.jobs || !Array.isArray(data.jobs)) {
+      data.jobs = initialSeed.jobs;
+      modified = true;
+    }
+    if (!data.jobApplications || !Array.isArray(data.jobApplications)) {
+      data.jobApplications = initialSeed.jobApplications;
       modified = true;
     }
     if (modified) {
@@ -896,6 +1020,220 @@ app.post('/api/ai-lead', (req, res) => {
     message: "AI Lead captured and dispatched to Command Center successfully.",
     data: newInquiry
   });
+});
+
+// -------------------------------------------------------------
+// CAREERS & HIRING APIs (Public & Admin)
+// -------------------------------------------------------------
+
+// Public: List active jobs
+app.get('/api/jobs', (req, res) => {
+  const db = getDb();
+  const activeJobs = (db.jobs || []).filter(j => j.status === 'Active' && j.enabled !== false);
+  res.json({ success: true, count: activeJobs.length, data: activeJobs });
+});
+
+// Public: Get single job details
+app.get('/api/jobs/:id', (req, res) => {
+  const { id } = req.params;
+  const db = getDb();
+  const job = (db.jobs || []).find(j => j.id === id);
+  if (!job) {
+    return res.status(404).json({ success: false, error: "Position not found or inactive" });
+  }
+  res.json({ success: true, data: job });
+});
+
+// Public: Submit job application
+app.post('/api/jobs/apply', (req, res) => {
+  const { jobId, name, email, phone, experience, currentCompany, resumeUrl, portfolioUrl, coverNote } = req.body || {};
+
+  if (!name || !email || !phone) {
+    return res.status(400).json({ success: false, error: "Name, email, and phone number are required." });
+  }
+
+  const db = getDb();
+  const targetJob = (db.jobs || []).find(j => j.id === jobId);
+  const jobTitle = targetJob ? targetJob.title : "General Engineering Application";
+
+  const appId = `APP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+  const newApplication = {
+    id: appId,
+    jobId: jobId || "general",
+    jobTitle: jobTitle,
+    name: String(name).trim().slice(0, 150),
+    email: String(email).trim().slice(0, 150),
+    phone: String(phone).trim().slice(0, 50),
+    experience: String(experience || "Not specified").trim().slice(0, 100),
+    currentCompany: String(currentCompany || "").trim().slice(0, 150),
+    resumeUrl: String(resumeUrl || "").trim().slice(0, 500),
+    portfolioUrl: String(portfolioUrl || "").trim().slice(0, 500),
+    coverNote: String(coverNote || "").trim().slice(0, 3000),
+    status: "Applied",
+    adminNotes: "",
+    appliedAt: new Date().toISOString()
+  };
+
+  db.jobApplications = db.jobApplications || [];
+  db.jobApplications.unshift(newApplication);
+  saveDb(db);
+
+  // Instant notification to Admin mobile phone via Telegram
+  const alertText = `💼 <b>NEW JOB APPLICATION RECEIVED!</b>\n\n` +
+    `🎯 <b>Role:</b> ${newApplication.jobTitle}\n` +
+    `👤 <b>Candidate:</b> ${newApplication.name}\n` +
+    `📞 <b>Phone:</b> ${newApplication.phone}\n` +
+    `✉️ <b>Email:</b> ${newApplication.email}\n` +
+    `⏳ <b>Experience:</b> ${newApplication.experience}\n` +
+    `📄 <b>Resume:</b> ${newApplication.resumeUrl || "Not attached"}\n` +
+    `⏱ <b>Applied:</b> ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST`;
+  sendTelegramAlert(alertText).catch(e => console.warn("Telegram dispatch failed:", e));
+
+  res.status(201).json({
+    success: true,
+    message: "Application submitted successfully! Our talent acquisition team will review your profile.",
+    data: newApplication
+  });
+});
+
+// Protected: Get all jobs (with applicant counts)
+app.get('/api/admin/jobs', authenticateAdmin, (req, res) => {
+  const db = getDb();
+  const jobs = (db.jobs || []).map(job => {
+    const applicantCount = (db.jobApplications || []).filter(app => app.jobId === job.id).length;
+    return { ...job, applicantCount };
+  });
+  res.json({ success: true, count: jobs.length, data: jobs });
+});
+
+// Protected: Create new job posting
+app.post('/api/admin/jobs', authenticateAdmin, (req, res) => {
+  const { title, department, location, type, experience, salary, description, requirements, benefits } = req.body || {};
+
+  if (!title || !department) {
+    return res.status(400).json({ success: false, error: "Title and Department are required." });
+  }
+
+  const db = getDb();
+  const newJob = {
+    id: `job-${Date.now()}`,
+    title: String(title).trim(),
+    department: String(department).trim(),
+    location: String(location || "Remote").trim(),
+    type: String(type || "Full-Time").trim(),
+    experience: String(experience || "2+ Years").trim(),
+    salary: String(salary || "Competitive").trim(),
+    description: String(description || "").trim(),
+    requirements: Array.isArray(requirements) ? requirements : (typeof requirements === 'string' ? requirements.split('\n').filter(Boolean) : []),
+    benefits: Array.isArray(benefits) ? benefits : (typeof benefits === 'string' ? benefits.split('\n').filter(Boolean) : []),
+    status: "Active",
+    enabled: true,
+    createdAt: new Date().toISOString()
+  };
+
+  db.jobs = db.jobs || [];
+  db.jobs.unshift(newJob);
+  saveDb(db);
+
+  res.status(201).json({ success: true, message: "Job position posted successfully", data: newJob });
+});
+
+// Protected: Update existing job
+app.put('/api/admin/jobs/:id', authenticateAdmin, (req, res) => {
+  const { id } = req.params;
+  const db = getDb();
+  const index = (db.jobs || []).findIndex(j => j.id === id);
+  if (index === -1) {
+    return res.status(404).json({ success: false, error: "Job not found" });
+  }
+
+  db.jobs[index] = {
+    ...db.jobs[index],
+    ...req.body,
+    id,
+    updatedAt: new Date().toISOString()
+  };
+  saveDb(db);
+
+  res.json({ success: true, message: "Job position updated successfully", data: db.jobs[index] });
+});
+
+// Protected: Toggle job status (Active / Closed)
+app.patch('/api/admin/jobs/:id/toggle', authenticateAdmin, (req, res) => {
+  const { id } = req.params;
+  const db = getDb();
+  const job = (db.jobs || []).find(j => j.id === id);
+  if (!job) {
+    return res.status(404).json({ success: false, error: "Job not found" });
+  }
+
+  job.status = job.status === "Active" ? "Closed" : "Active";
+  job.enabled = job.status === "Active";
+  job.updatedAt = new Date().toISOString();
+  saveDb(db);
+
+  res.json({ success: true, data: job });
+});
+
+// Protected: Delete job
+app.delete('/api/admin/jobs/:id', authenticateAdmin, (req, res) => {
+  const { id } = req.params;
+  const db = getDb();
+  const initialLength = (db.jobs || []).length;
+  db.jobs = (db.jobs || []).filter(j => j.id !== id);
+  if (db.jobs.length === initialLength) {
+    return res.status(404).json({ success: false, error: "Job not found" });
+  }
+  saveDb(db);
+  res.json({ success: true, message: "Job removed successfully" });
+});
+
+// Protected: Get all job applications
+app.get('/api/admin/job-applications', authenticateAdmin, (req, res) => {
+  const { jobId, status } = req.query;
+  const db = getDb();
+  let applications = db.jobApplications || [];
+
+  if (jobId) {
+    applications = applications.filter(a => a.jobId === jobId);
+  }
+  if (status && status !== 'All') {
+    applications = applications.filter(a => a.status === status);
+  }
+
+  res.json({ success: true, count: applications.length, data: applications });
+});
+
+// Protected: Update application status and admin notes (e.g. Hire, Shortlist, Reject)
+app.patch('/api/admin/job-applications/:id', authenticateAdmin, (req, res) => {
+  const { id } = req.params;
+  const { status, adminNotes } = req.body;
+  const db = getDb();
+  const appItem = (db.jobApplications || []).find(a => a.id === id);
+  if (!appItem) {
+    return res.status(404).json({ success: false, error: "Application not found" });
+  }
+
+  if (status) appItem.status = status;
+  if (adminNotes !== undefined) appItem.adminNotes = adminNotes;
+  appItem.updatedAt = new Date().toISOString();
+  saveDb(db);
+
+  res.json({ success: true, message: "Candidate application updated successfully", data: appItem });
+});
+
+// Protected: Delete application
+app.delete('/api/admin/job-applications/:id', authenticateAdmin, (req, res) => {
+  const { id } = req.params;
+  const db = getDb();
+  const initialLength = (db.jobApplications || []).length;
+  db.jobApplications = (db.jobApplications || []).filter(a => a.id !== id);
+  if (db.jobApplications.length === initialLength) {
+    return res.status(404).json({ success: false, error: "Application not found" });
+  }
+  saveDb(db);
+  res.json({ success: true, message: "Application deleted successfully" });
 });
 
 // Protected: Server Health Status Info (Safe: No passwords/secrets)

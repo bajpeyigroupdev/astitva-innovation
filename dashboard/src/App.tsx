@@ -17,6 +17,7 @@ import ServerPage from "./pages/ServerPage";
 import SettingsPage from "./pages/SettingsPage";
 import ProductsPage from "./pages/ProductsPage";
 import FoundersPage from "./pages/FoundersPage";
+import CareersPage from "./pages/CareersPage";
 
 const queryClient = new QueryClient();
 
@@ -41,6 +42,7 @@ const App = () => (
           >
             <Route path="/" element={<OverviewPage />} />
             <Route path="/inquiries" element={<InquiriesPage />} />
+            <Route path="/careers" element={<CareersPage />} />
             <Route path="/products" element={<ProductsPage />} />
             <Route path="/founders" element={<FoundersPage />} />
             <Route path="/fintech" element={<FinTechPage />} />
@@ -53,6 +55,7 @@ const App = () => (
             <Route path="/admin" element={<Navigate to="/" replace />} />
             <Route path="/admin/overview" element={<Navigate to="/" replace />} />
             <Route path="/admin/inquiries" element={<Navigate to="/inquiries" replace />} />
+            <Route path="/admin/careers" element={<Navigate to="/careers" replace />} />
             <Route path="/admin/products" element={<Navigate to="/products" replace />} />
             <Route path="/admin/founders" element={<Navigate to="/founders" replace />} />
             <Route path="/admin/fintech" element={<Navigate to="/fintech" replace />} />

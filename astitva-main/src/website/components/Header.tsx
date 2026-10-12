@@ -1,10 +1,13 @@
 import { useState, useEffect } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Menu, X, Sparkles, ArrowRight, ShieldCheck, CreditCard, Phone } from "lucide-react";
+import { Menu, X, Sparkles, ArrowRight, ShieldCheck, CreditCard, Phone, Briefcase, Users } from "lucide-react";
 
 export const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -14,11 +17,21 @@ export const Header = () => {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const scrollToSection = (sectionId: string) => {
+  const handleNavClick = (sectionId: string, directPath?: string) => {
+    setIsMenuOpen(false);
+    if (directPath) {
+      navigate(directPath);
+      return;
+    }
+    if (location.pathname !== "/") {
+      navigate(`/#${sectionId}`);
+      return;
+    }
     const element = document.getElementById(sectionId);
     if (element) {
       element.scrollIntoView({ behavior: "smooth" });
-      setIsMenuOpen(false);
+    } else {
+      navigate(`/#${sectionId}`);
     }
   };
 
@@ -34,7 +47,7 @@ export const Header = () => {
           {/* Logo */}
           <div 
             className="flex items-center gap-3 cursor-pointer group" 
-            onClick={() => scrollToSection("home")}
+            onClick={() => handleNavClick("home", "/")}
           >
             <img
               src="/astitva-logo.png"
@@ -46,67 +59,58 @@ export const Header = () => {
           </div>
 
           {/* Desktop Navigation */}
-          <nav className="hidden lg:flex items-center gap-6 text-sm font-medium">
+          <nav className="hidden lg:flex items-center gap-5 text-sm font-medium">
             <button
-              onClick={() => scrollToSection("home")}
+              onClick={() => handleNavClick("home", "/")}
               className="text-foreground/80 hover:text-primary transition-colors"
             >
               Home
             </button>
             <button
-              onClick={() => scrollToSection("services")}
+              onClick={() => handleNavClick("services")}
               className="text-foreground/80 hover:text-primary transition-colors"
             >
               Services
             </button>
             <button
-              onClick={() => scrollToSection("products")}
+              onClick={() => handleNavClick("products")}
               className="text-foreground/80 hover:text-primary transition-colors"
             >
               Products
             </button>
             <button
-              onClick={() => scrollToSection("fintech")}
+              onClick={() => handleNavClick("fintech")}
               className="flex items-center gap-1.5 text-accent hover:text-accent/80 transition-colors font-semibold"
             >
               <CreditCard className="w-3.5 h-3.5" />
-              FinTech & Payments
+              FinTech &amp; Payments
             </button>
             <button
-              onClick={() => scrollToSection("calculator")}
-              className="text-foreground/80 hover:text-primary transition-colors"
-            >
-              Calculator
-            </button>
-            <button
-              onClick={() => scrollToSection("tech-stack")}
-              className="text-foreground/80 hover:text-primary transition-colors"
-            >
-              Tech Stack
-            </button>
-            <button
-              onClick={() => scrollToSection("portfolio")}
+              onClick={() => handleNavClick("portfolio")}
               className="text-foreground/80 hover:text-primary transition-colors"
             >
               Case Studies
             </button>
             <button
-              onClick={() => scrollToSection("process")}
-              className="text-foreground/80 hover:text-primary transition-colors"
-            >
-              Process
-            </button>
-            <button
-              onClick={() => scrollToSection("founders")}
-              className="text-foreground/80 hover:text-primary transition-colors font-semibold"
+              onClick={() => handleNavClick("founders", "/founders")}
+              className="text-foreground/80 hover:text-primary transition-colors font-medium flex items-center gap-1"
             >
               Founders
             </button>
             <button
-              onClick={() => scrollToSection("about")}
+              onClick={() => handleNavClick("careers", "/careers")}
+              className="text-foreground/80 hover:text-primary transition-colors font-medium flex items-center gap-1.5"
+            >
+              <span>Careers</span>
+              <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-mono font-bold animate-pulse">
+                Hiring
+              </span>
+            </button>
+            <button
+              onClick={() => handleNavClick("calculator")}
               className="text-foreground/80 hover:text-primary transition-colors"
             >
-              About
+              Estimator
             </button>
           </nav>
 
@@ -123,15 +127,16 @@ export const Header = () => {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => scrollToSection("calculator")}
+              onClick={() => handleNavClick("careers", "/careers")}
               className="text-xs border-primary/30 hover:bg-primary/10"
             >
-              Estimate Cost
+              <Briefcase className="w-3.5 h-3.5 mr-1 text-primary" />
+              Join Squad
             </Button>
             <Button
               variant="hero"
               size="sm"
-              onClick={() => scrollToSection("contact")}
+              onClick={() => handleNavClick("contact")}
               className="text-xs px-4"
             >
               Get a Quote
@@ -140,107 +145,99 @@ export const Header = () => {
           </div>
 
           {/* Mobile Menu Button */}
-          <button
-            className="lg:hidden p-2 text-foreground hover:text-primary transition-colors"
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-            aria-label="Toggle Navigation Menu"
-          >
-            {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
+          <div className="lg:hidden flex items-center gap-2">
+            <a
+              href="tel:+917233882089"
+              className="inline-flex p-2 rounded-lg bg-background/60 border border-border/60 text-emerald-400"
+              title="Call Direct Desk"
+            >
+              <Phone className="w-4 h-4" />
+            </a>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              className="p-2"
+              aria-label="Toggle Menu"
+            >
+              {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </Button>
+          </div>
+
         </div>
 
-        {/* Mobile Navigation Drawer */}
+        {/* Mobile Navigation Dropdown */}
         {isMenuOpen && (
-          <div className="lg:hidden mt-3 pt-3 border-t border-border/80 pb-4 bg-background/95 backdrop-blur-2xl rounded-b-2xl animate-in slide-in-from-top-3 duration-200">
-            <nav className="flex flex-col gap-2.5 px-2 text-sm font-medium">
+          <div className="lg:hidden mt-3 pb-4 border-t border-border/60 bg-background/95 backdrop-blur-2xl rounded-2xl p-4 shadow-2xl animate-in slide-in-from-top-3">
+            <nav className="flex flex-col space-y-2 text-sm">
               <button
-                onClick={() => scrollToSection("home")}
-                className="text-left py-2 px-3 rounded-lg hover:bg-card text-foreground"
+                onClick={() => handleNavClick("home", "/")}
+                className="text-left py-2 px-3 rounded-lg hover:bg-card text-foreground font-medium"
               >
                 Home
               </button>
               <button
-                onClick={() => scrollToSection("services")}
+                onClick={() => handleNavClick("services")}
                 className="text-left py-2 px-3 rounded-lg hover:bg-card text-foreground"
               >
                 Services
               </button>
               <button
-                onClick={() => scrollToSection("products")}
+                onClick={() => handleNavClick("products")}
                 className="text-left py-2 px-3 rounded-lg hover:bg-card text-foreground"
               >
                 Products (Meethi Chat)
               </button>
               <button
-                onClick={() => scrollToSection("fintech")}
+                onClick={() => handleNavClick("fintech")}
                 className="text-left py-2 px-3 rounded-lg hover:bg-card text-accent font-semibold flex items-center gap-2"
               >
                 <CreditCard className="w-4 h-4" />
-                FinTech & Payment Gateways
+                FinTech &amp; Payment Gateway
               </button>
               <button
-                onClick={() => scrollToSection("calculator")}
-                className="text-left py-2 px-3 rounded-lg hover:bg-card text-foreground"
+                onClick={() => handleNavClick("founders", "/founders")}
+                className="text-left py-2 px-3 rounded-lg hover:bg-card text-foreground font-semibold flex items-center justify-between"
               >
-                Project Cost Calculator
+                <span>Founders &amp; Leadership</span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">Executive</span>
               </button>
               <button
-                onClick={() => scrollToSection("tech-stack")}
-                className="text-left py-2 px-3 rounded-lg hover:bg-card text-foreground"
+                onClick={() => handleNavClick("careers", "/careers")}
+                className="text-left py-2 px-3 rounded-lg hover:bg-card text-foreground font-semibold flex items-center justify-between"
               >
-                Tech Stack
+                <span className="flex items-center gap-2">
+                  <Briefcase className="w-4 h-4 text-emerald-400" />
+                  Engineering Careers
+                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">Hiring</span>
               </button>
               <button
-                onClick={() => scrollToSection("portfolio")}
+                onClick={() => handleNavClick("portfolio")}
                 className="text-left py-2 px-3 rounded-lg hover:bg-card text-foreground"
               >
                 Case Studies
               </button>
               <button
-                onClick={() => scrollToSection("process")}
+                onClick={() => handleNavClick("calculator")}
                 className="text-left py-2 px-3 rounded-lg hover:bg-card text-foreground"
               >
-                Agile Process
-              </button>
-              <button
-                onClick={() => scrollToSection("pricing")}
-                className="text-left py-2 px-3 rounded-lg hover:bg-card text-foreground"
-              >
-                Engagement Models
-              </button>
-              <button
-                onClick={() => scrollToSection("faq")}
-                className="text-left py-2 px-3 rounded-lg hover:bg-card text-foreground"
-              >
-                FAQ
-              </button>
-              <button
-                onClick={() => scrollToSection("founders")}
-                className="text-left py-2 px-3 rounded-lg hover:bg-card text-foreground font-semibold flex items-center justify-between"
-              >
-                <span>Founders & Leadership</span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">Executive</span>
-              </button>
-              <button
-                onClick={() => scrollToSection("about")}
-                className="text-left py-2 px-3 rounded-lg hover:bg-card text-foreground"
-              >
-                About Us
+                Project Cost Estimator
               </button>
 
               <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-border">
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => scrollToSection("calculator")}
+                  onClick={() => handleNavClick("careers", "/careers")}
                   className="text-xs"
                 >
-                  Estimate Cost
+                  Join Team
                 </Button>
                 <Button
                   variant="hero"
                   size="sm"
-                  onClick={() => scrollToSection("contact")}
+                  onClick={() => handleNavClick("contact")}
                   className="text-xs"
                 >
                   Get a Quote

@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { Mail, Phone, MapPin, ShieldCheck, CreditCard, ArrowUpRight } from "lucide-react";
 
 interface FooterProps {
@@ -161,6 +162,23 @@ export const Footer = ({ onOpenLegal }: FooterProps) => {
                 </button>
               </li>
               <li>
+                <Link 
+                  to="/founders"
+                  className="hover:text-primary transition-colors text-left flex items-center gap-1 font-medium text-foreground"
+                >
+                  Founders &amp; Leadership
+                </Link>
+              </li>
+              <li>
+                <Link 
+                  to="/careers"
+                  className="hover:text-primary transition-colors text-left flex items-center justify-between font-medium text-emerald-400"
+                >
+                  <span>Engineering Careers</span>
+                  <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-emerald-500/10 border border-emerald-500/30">Hiring</span>
+                </Link>
+              </li>
+              <li>
                 <button 
                   onClick={() => scrollToSection("calculator")}
                   className="hover:text-primary transition-colors text-left"
@@ -181,7 +199,7 @@ export const Footer = ({ onOpenLegal }: FooterProps) => {
                   onClick={() => scrollToSection("portfolio")}
                   className="hover:text-primary transition-colors text-left"
                 >
-                  Case Studies & Portfolio
+                  Case Studies &amp; Portfolio
                 </button>
               </li>
               <li>
@@ -203,35 +221,56 @@ export const Footer = ({ onOpenLegal }: FooterProps) => {
             </ul>
           </div>
 
-          {/* Compliance & Legal (Merchant PG requirement) */}
+          {/* Compliance & Legal (Merchant PG requirement & Legal Policies) */}
           <div>
             <h4 className="font-bold text-sm text-foreground mb-4">
-              Compliance & Legal
+              Compliance &amp; Legal Policies
             </h4>
             <ul className="space-y-2.5 text-xs text-muted-foreground">
               <li>
-                <button 
-                  onClick={() => onOpenLegal("privacy")}
-                  className="hover:text-primary transition-colors text-left flex items-center gap-1"
+                <Link 
+                  to="/privacy-policy"
+                  className="hover:text-primary transition-colors text-left flex items-center gap-1.5"
                 >
-                  Privacy Policy
-                </button>
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  Privacy Policy (DPDP Act)
+                </Link>
               </li>
               <li>
-                <button 
-                  onClick={() => onOpenLegal("terms")}
-                  className="hover:text-primary transition-colors text-left flex items-center gap-1"
+                <Link 
+                  to="/terms-of-service"
+                  className="hover:text-primary transition-colors text-left flex items-center gap-1.5"
                 >
-                  Terms of Service
-                </button>
+                  <ShieldCheck className="w-3.5 h-3.5 text-primary shrink-0" />
+                  Terms of Service &amp; SOW
+                </Link>
               </li>
               <li>
-                <button 
-                  onClick={() => onOpenLegal("refund")}
-                  className="hover:text-primary transition-colors text-left flex items-center gap-1"
+                <Link 
+                  to="/refund-policy"
+                  className="hover:text-primary transition-colors text-left flex items-center gap-1.5"
                 >
-                  Refund & Cancellation Policy
-                </button>
+                  <CreditCard className="w-3.5 h-3.5 text-accent shrink-0" />
+                  Refund &amp; Cancellation Policy
+                </Link>
+              </li>
+              <li>
+                <Link 
+                  to="/security-policy"
+                  className="hover:text-primary transition-colors text-left flex items-center gap-1.5"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  Security &amp; Compliance Policy
+                </Link>
+              </li>
+              <li>
+                <Link 
+                  to="/cookie-policy"
+                  className="hover:text-primary transition-colors text-left flex items-center gap-1.5"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  Cookie &amp; Telemetry Policy
+                </Link>
               </li>
               <li className="pt-2 text-[11px] text-muted-foreground/70">
                 Official Domain: <a href="https://astitvainnovation.in" className="text-accent underline">astitvainnovation.in</a>
@@ -240,7 +279,7 @@ export const Footer = ({ onOpenLegal }: FooterProps) => {
 
             <div className="mt-4 p-3 rounded-lg bg-card/60 border border-border/80 text-[11px] text-muted-foreground flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span>PCI-DSS & SSL Verified Architecture</span>
+              <span>PCI-DSS Level 1 &amp; SSL Verified Platform</span>
             </div>
           </div>
 
@@ -251,21 +290,27 @@ export const Footer = ({ onOpenLegal }: FooterProps) => {
           <div>
             © {currentYear} Astitva Innovation (astitvainnovation.in). All rights reserved.
           </div>
-          <div className="flex items-center gap-6">
-            <button onClick={() => onOpenLegal("privacy")} className="hover:text-foreground transition-colors">
+          <div className="flex flex-wrap items-center gap-4 md:gap-6">
+            <Link to="/privacy-policy" className="hover:text-foreground transition-colors">
               Privacy
-            </button>
-            <button onClick={() => onOpenLegal("terms")} className="hover:text-foreground transition-colors">
+            </Link>
+            <Link to="/terms-of-service" className="hover:text-foreground transition-colors">
               Terms
-            </button>
-            <button onClick={() => onOpenLegal("refund")} className="hover:text-foreground transition-colors">
+            </Link>
+            <Link to="/refund-policy" className="hover:text-foreground transition-colors">
               Refunds
-            </button>
+            </Link>
+            <Link to="/security-policy" className="hover:text-foreground transition-colors">
+              Security
+            </Link>
+            <Link to="/careers" className="hover:text-foreground transition-colors text-emerald-400 font-medium">
+              Careers
+            </Link>
+            <Link to="/founders" className="hover:text-foreground transition-colors">
+              Founders
+            </Link>
             <a href="https://b2b.astitvainnovation.in/login" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors text-accent font-medium">
               B2B Portal
-            </a>
-            <a href="https://github.com/astitvainnovation" target="_blank" rel="noreferrer" className="hover:text-foreground transition-colors">
-              GitHub
             </a>
           </div>
         </div>

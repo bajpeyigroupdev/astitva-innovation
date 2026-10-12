@@ -17,7 +17,8 @@ import {
   ShieldCheck,
   ChevronRight,
   Package,
-  UserCheck
+  UserCheck,
+  Briefcase
 } from "lucide-react";
 import { authService } from "../auth/authService";
 import { APP_CONFIG } from "../constants/config";
@@ -63,6 +64,7 @@ export const PanelLayout = () => {
   const navItems = [
     { to: "/", label: "Overview", icon: LayoutDashboard },
     { to: "/inquiries", label: "Inquiries & Leads", icon: Users },
+    { to: "/careers", label: "Careers & Hiring", icon: Briefcase },
     { to: "/products", label: "Products & Apps", icon: Package },
     { to: "/founders", label: "Founders & Team", icon: UserCheck },
     { to: "/fintech", label: "FinTech Operations", icon: CreditCard },

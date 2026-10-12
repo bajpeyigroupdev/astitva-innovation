@@ -154,45 +154,45 @@ export const AiAgentWidget = () => {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
+    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3 pointer-events-auto">
       
-      {/* Floating Action Dock (When widget is closed) */}
+      {/* 1. TOP BUBBLE: WhatsApp Direct Action (Always accessible or stacked on top) */}
       {!isOpen && (
-        <div className="flex items-center gap-3 animate-in fade-in slide-in-from-bottom-3 duration-300">
-          
-          {/* Direct WhatsApp Action Button */}
-          <a
-            href="https://wa.me/917233882089?text=Hi%20Astitva%20Innovation,%20I%20would%20like%20to%20discuss%20a%20software%20project."
-            target="_blank"
-            rel="noopener noreferrer"
-            className="group relative flex items-center gap-2.5 px-4 py-3 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white shadow-xl shadow-emerald-500/20 hover:scale-105 transition-all duration-300"
-            title="Chat directly on WhatsApp (+91 7233882089)"
-            aria-label="Direct WhatsApp Chat"
-          >
-            <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
-            <Phone className="w-4 h-4 shrink-0" />
-            <span className="text-xs font-bold tracking-tight hidden sm:inline-block">
-              WhatsApp (+91 7233882089)
-            </span>
-          </a>
+        <a
+          href="https://wa.me/917233882089?text=Hi%20Astitva%20Innovation,%20I%20would%20like%20to%20discuss%20a%20software%20project."
+          target="_blank"
+          rel="noopener noreferrer"
+          className="group relative flex items-center gap-2.5 px-4 py-3 rounded-full bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white shadow-xl shadow-emerald-500/25 hover:scale-105 active:scale-95 transition-all duration-300 border border-white/20 animate-in fade-in slide-in-from-bottom-2"
+          title="Chat directly on WhatsApp (+91 7233882089)"
+          aria-label="Direct WhatsApp Chat"
+        >
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white" />
+          </span>
+          <Phone className="w-4 h-4 shrink-0 transition-transform group-hover:rotate-12" />
+          <span className="text-xs font-bold tracking-tight">
+            WhatsApp <span className="hidden sm:inline font-mono text-[11px] text-white/90">(+91 7233882089)</span>
+          </span>
+        </a>
+      )}
 
-          {/* AI Solutions Architect Toggle Button */}
-          <button
-            onClick={() => setIsOpen(true)}
-            className="group relative flex items-center gap-2.5 px-4 py-3 rounded-full bg-gradient-to-r from-primary via-indigo-600 to-accent text-white shadow-xl shadow-primary/30 hover:scale-105 transition-all duration-300 border border-white/20"
-            aria-label="Open AI Architect Assistant"
-          >
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-300" />
-            </span>
-            <Bot className="w-5 h-5 shrink-0 transition-transform group-hover:rotate-12" />
-            <span className="text-xs font-bold tracking-tight">
-              AI Architect <span className="hidden md:inline font-normal text-white/80">• Online</span>
-            </span>
-          </button>
-
-        </div>
+      {/* 2. BOTTOM BUBBLE: AI Solutions Architect Assistant Toggle */}
+      {!isOpen && (
+        <button
+          onClick={() => setIsOpen(true)}
+          className="group relative flex items-center gap-2.5 px-4 py-3 rounded-full bg-gradient-to-r from-primary via-indigo-600 to-accent text-white shadow-xl shadow-primary/30 hover:scale-105 active:scale-95 transition-all duration-300 border border-white/20 animate-in fade-in slide-in-from-bottom-3"
+          aria-label="Open AI Architect Assistant"
+        >
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-300" />
+          </span>
+          <Bot className="w-5 h-5 shrink-0 transition-transform group-hover:rotate-12" />
+          <span className="text-xs font-bold tracking-tight">
+            AI Architect <span className="font-normal text-white/80">• Online</span>
+          </span>
+        </button>
       )}
 
       {/* Expanded Interactive AI Chat Window */}

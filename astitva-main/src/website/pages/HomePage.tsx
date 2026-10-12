@@ -12,6 +12,7 @@ import CaseStudies from "../components/CaseStudies";
 import EngagementModels from "../components/EngagementModels";
 import About from "../components/About";
 import Founders from "../components/Founders";
+import CareersSection from "../components/CareersSection";
 import FaqSection from "../components/FaqSection";
 import Contact from "../components/Contact";
 import Footer from "../components/Footer";
@@ -76,6 +77,7 @@ export const HomePage = () => {
         <CaseStudies />
         <EngagementModels />
         <Founders />
+        <CareersSection />
         <About />
         <FaqSection />
         <Contact prefilledScope={calculatorScope} />

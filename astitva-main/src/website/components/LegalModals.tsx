@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import {
   Dialog,
   DialogContent,
@@ -125,6 +126,23 @@ export const LegalModals = ({ type, isOpen, onClose }: LegalModalProps) => {
             </div>
           )}
         </ScrollArea>
+
+        <div className="pt-3 border-t border-border/60 flex items-center justify-between text-xs">
+          <Link
+            to={
+              type === "privacy" ? "/privacy-policy" :
+              type === "terms" ? "/terms-of-service" :
+              "/refund-policy"
+            }
+            onClick={onClose}
+            className="text-primary hover:underline font-semibold flex items-center gap-1"
+          >
+            Open Dedicated Policy Page in Full Screen &rarr;
+          </Link>
+          <span className="text-[11px] text-muted-foreground font-mono">
+            astitvainnovation.in • Legal
+          </span>
+        </div>
       </DialogContent>
     </Dialog>
   );
