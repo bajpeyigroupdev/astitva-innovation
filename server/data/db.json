@@ -1,0 +1,194 @@
+{
+  "settings": {
+    "brandName": "Astitva Innovation",
+    "phone": "+91 7233882089",
+    "whatsappNumber": "917233882089",
+    "contactEmail": "contact@astitvainnovation.in",
+    "supportEmail": "support@astitvainnovation.in",
+    "salesEmail": "support@astitvainnovation.in",
+    "address": "Global Software Engineering Hub • India & Remote",
+    "workingHours": "Mon - Sat: 9:30 AM - 7:30 PM IST",
+    "telegramBotToken": "",
+    "telegramChatId": "",
+    "notificationsEnabled": true
+  },
+  "products": [
+    {
+      "id": "prod-meethi-chat",
+      "name": "Meethi Chat",
+      "tagline": "Social Voice & Friendship Platform",
+      "category": "Social Voice & Community",
+      "badge": "Official Flagship App",
+      "description": "Meethi Chat is a premium social voice platform designed for meaningful one-to-one conversations, friendships, and real-time voice calling. Users can discover people through smart matchmaking, personalize their profiles, send virtual gifts, and manage their wallet while enjoying private and engaging conversations.",
+      "storeUrl": "https://play.google.com/store/apps/details?id=com.umangchatlive&hl=en_IN",
+      "storeType": "google-play",
+      "packageName": "com.umangchatlive",
+      "iconUrl": "/meethi-chat-icon.png",
+      "status": "Active",
+      "isFeatured": true,
+      "technologies": ["WebRTC", "Node.js", "Socket.IO", "Redis", "Android Native"],
+      "features": [
+        "Real-Time 1-on-1 Voice Calling with ultra-low latency WebRTC",
+        "Smart Matchmaking interest-based algorithm",
+        "Profile Customization with avatars and custom badges",
+        "Virtual Gifting with animated rewards",
+        "Wallet & Instant Recharge infrastructure",
+        "Granular Privacy Controls & caller security",
+        "Instant Block & Rapid Incident Reporting",
+        "Verified Host & Talent Creator Ecosystem",
+        "Safe Community 24/7 automated filters"
+      ],
+      "metrics": [
+        { "label": "Engine", "value": "Real-Time WebRTC Audio" },
+        { "label": "Community", "value": "Verified Hosts" },
+        { "label": "Safety", "value": "24/7 Moderation" }
+      ],
+      "createdAt": "2026-09-18T12:00:00.000Z"
+    }
+  ],
+  "founders": [
+    {
+      "id": "founder-shivansh",
+      "name": "Shivansh Kamal Bajpeyi",
+      "position": "Founder & Chief Executive Officer",
+      "roleBadge": "CEO & Principal Architect",
+      "bio": "Visionary software architect leading technical strategy, distributed platforms, WebRTC systems, and FinTech infrastructures at Astitva Innovation.",
+      "portfolioSummary": "Shivansh Kamal Bajpeyi heads the engineering direction and strategic technology roadmaps at Astitva Innovation. With deep expertise across high-concurrency systems, real-time voice architectures (WebRTC), high-throughput payment routing, and enterprise cloud DevOps, Shivansh spearheaded the development of flagship products like Meethi Chat and bank-grade FinTech middleware.",
+      "keySkills": ["Distributed Systems", "FinTech & Payment Gateways", "WebRTC & Audio Protocols", "Cloud Architecture & DevOps", "Full-Stack System Design"],
+      "photoUrl": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80",
+      "linkedin": "https://www.linkedin.com/in/shivansh-bajpeyi",
+      "instagram": "https://www.instagram.com/shivansh_bajpeyi",
+      "email": "shivansh@astitvainnovation.in",
+      "phone": "+91 7233882089",
+      "order": 1,
+      "enabled": true
+    },
+    {
+      "id": "founder-shiv-prakash",
+      "name": "Shiv Prakash",
+      "position": "Co-Founder & Chief Operations Officer",
+      "roleBadge": "COO & Enterprise Strategy Lead",
+      "bio": "Operations and corporate strategy leader steering organizational scaling, client partnerships, compliance, and international delivery.",
+      "portfolioSummary": "Shiv Prakash oversees operational lifecycles, commercial client relationships, and business development initiatives. Bringing extensive experience in agile team scaling, strategic growth, and operational management, Shiv drives the commercialization of Astitva's enterprise software solutions and ensures top-tier client execution.",
+      "keySkills": ["Operations Management", "Business Strategy", "Client Delivery & SOWs", "Product Commercialization", "Agile Execution"],
+      "photoUrl": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=600&q=80",
+      "linkedin": "https://www.linkedin.com/in/shiv-prakash",
+      "instagram": "https://www.instagram.com/shiv_prakash",
+      "email": "shivprakash@astitvainnovation.in",
+      "phone": "+91 7233882089",
+      "order": 2,
+      "enabled": true
+    }
+  ],
+  "inquiries": [
+    {
+      "id": "INQ-2026-4356",
+      "name": "Test Client",
+      "email": "client@example.com",
+      "phone": "+91 99999 88888",
+      "service": "FinTech & Payment Gateway",
+      "budget": "?2,50,000",
+      "message": "Automated integration test submission",
+      "status": "New",
+      "date": "2026-09-18T18:59:52.017Z"
+    },
+    {
+      "id": "INQ-2026-001",
+      "name": "Vikram Malhotra",
+      "email": "v.malhotra@paysecure.tech",
+      "phone": "+91 98201 44556",
+      "service": "FinTech & Payment Gateway",
+      "budget": "₹5,00,000 - ₹10,00,000",
+      "message": "Looking for dual payment gateway routing (Razorpay + Stripe fallback) with automated webhook reconciliation and fraud velocity checks.",
+      "status": "In Review",
+      "date": "2026-09-18T16:58:59.733Z"
+    },
+    {
+      "id": "INQ-2026-002",
+      "name": "Ananya Sharma",
+      "email": "ananya@finscale.io",
+      "phone": "+91 98112 33445",
+      "service": "Custom SaaS Development",
+      "budget": "₹10,00,000+",
+      "message": "Multi-tenant B2B lending platform with KYC verification microservice and high throughput ledger accounting.",
+      "status": "New",
+      "date": "2026-09-18T13:58:59.733Z"
+    },
+    {
+      "id": "INQ-2026-003",
+      "name": "Rajesh Singhania",
+      "email": "rajesh@singhaniagroup.in",
+      "phone": "+91 98450 11223",
+      "service": "Enterprise Cloud & DevOps",
+      "budget": "₹3,00,000 - ₹5,00,000",
+      "message": "AWS ECS migration from monolithic droplets, automated CI/CD pipeline, and 99.99% uptime SLA monitoring.",
+      "status": "Contacted",
+      "date": "2026-09-17T18:58:59.733Z"
+    }
+  ],
+  "fintechLogs": [
+    {
+      "id": "PAY-TXN-8821",
+      "gateway": "Razorpay",
+      "event": "payment.captured",
+      "amount": 145000,
+      "currency": "INR",
+      "status": "success",
+      "environment": "LIVE",
+      "signatureVerified": true,
+      "timestamp": "2026-09-18T17:58:59.733Z"
+    },
+    {
+      "id": "PAY-TXN-8822",
+      "gateway": "Stripe",
+      "event": "payment_intent.succeeded",
+      "amount": 250000,
+      "currency": "INR",
+      "status": "success",
+      "environment": "LIVE",
+      "signatureVerified": true,
+      "timestamp": "2026-09-18T16:58:59.733Z"
+    },
+    {
+      "id": "PAY-SIM-1001",
+      "gateway": "Cashfree",
+      "event": "order.paid.simulated",
+      "amount": 49999,
+      "currency": "INR",
+      "status": "success",
+      "environment": "DEMO / SANDBOX",
+      "signatureVerified": true,
+      "timestamp": "2026-09-18T18:58:59.733Z"
+    }
+  ],
+  "services": [
+    {
+      "id": "fintech",
+      "name": "FinTech & Payment Gateway Engineering",
+      "enabled": true,
+      "startingPrice": "₹1,50,000",
+      "turnaround": "3-5 Weeks"
+    },
+    {
+      "id": "saas",
+      "name": "Custom SaaS & Enterprise Platforms",
+      "enabled": true,
+      "startingPrice": "₹2,50,000",
+      "turnaround": "4-8 Weeks"
+    },
+    {
+      "id": "cloud",
+      "name": "Cloud Architecture & High-Scale DevOps",
+      "enabled": true,
+      "startingPrice": "₹1,00,000",
+      "turnaround": "2-3 Weeks"
+    },
+    {
+      "id": "ai",
+      "name": "AI Integration & Workflow Automation",
+      "enabled": true,
+      "startingPrice": "₹1,20,000",
+      "turnaround": "2-4 Weeks"
+    }
+  ]
+}

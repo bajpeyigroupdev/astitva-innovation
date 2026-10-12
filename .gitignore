@@ -1,0 +1,14 @@
+# Root Git Ignore
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+.env
+.env.*
+*.local
+*.zip
+.DS_Store
+Thumbs.db
+*.log
+**/data/db.json.tmp.*
+

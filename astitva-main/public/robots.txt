@@ -1,0 +1,16 @@
+# robots.txt for https://astitvainnovation.in
+# Corporate Website Robots Policy
+
+User-agent: *
+Allow: /
+
+# Disallow internal systems, source files, and private APIs
+Disallow: /.env*
+Disallow: /.git*
+Disallow: /api/
+Disallow: /admin/
+Disallow: /dashboard/
+Disallow: /server/
+
+# Authoritative XML Sitemap
+Sitemap: https://astitvainnovation.in/sitemap.xml
