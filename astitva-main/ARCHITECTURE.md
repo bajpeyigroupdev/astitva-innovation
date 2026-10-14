@@ -73,3 +73,37 @@ E:\Company\Astitva Innovation\
    - Browser `localStorage` is maintained solely as an offline development fallback.
 4. **Search Engine Protection**:
    - `b2b.astitvainnovation.in` is strictly hidden from search engines via `robots.txt`, `X-Robots-Tag: noindex, nofollow, noarchive, nosnippet`, and HTML meta tags.
+
+---
+
+## 4. Meta WhatsApp Business Platform Architecture (Cloud API v20.0)
+
+```
+Meta WhatsApp Graph API (graph.facebook.com/v20.0)
+     ▲                                   │
+     │ Outbound Messages & Templates     │ Inbound Webhooks & Status Updates
+     │ (Bearer Token / System User)      │ (HMAC-SHA256 X-Hub-Signature-256)
+     │                                   ▼
+Node.js Express Backend Service (Port 5000: /api/whatsapp)
+     ├── whatsappClient.js     - Official Graph API caller & token security
+     ├── whatsappWebhook.js    - GET challenge & POST HMAC verification with deduplication
+     ├── evidenceManager.js    - Meta App Review screenshot & screencast indexing
+     └── checklistEngine.js    - Automated compliance conditions auditor
+     ▲
+     │ Authenticated Bearer JWT (Session)
+     ▼
+B2B Command Center (b2b.astitvainnovation.in/whatsapp)
+     ├── Overview & Health Metrics
+     ├── Live 24h Customer Service Window Chat
+     ├── Meta-Approved Templates Catalog
+     ├── Registered Phone & Quality Ratings
+     ├── Webhook Real-time Stream Inspector
+     ├── Outbound API Logs Audit Trail
+     ├── Screenshots & Screencasts Library
+     └── App Review Readiness Checklist & Exporter
+```
+
+### Security & Compliance Rules:
+1. **Server-Side Credentials**: `WHATSAPP_API_TOKEN`, `WHATSAPP_APP_SECRET`, and `WHATSAPP_VERIFY_TOKEN` reside strictly in server `.env` (chmod 600) and are never sent to client browsers.
+2. **24-Hour Policy Window**: Outbound free-form messages are permitted only when a customer message was received within 24 hours. Outside 24 hours, the system requires approved utility/marketing templates.
+3. **Evidence Authenticity**: Evidence screenshots and screencasts reflect actual working interfaces without fabrication or exposed tokens.

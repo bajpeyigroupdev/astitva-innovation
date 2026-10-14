@@ -5,10 +5,13 @@ dist/
 **/dist/
 .env
 .env.*
+!.env.example
+!**/.env.example
 *.local
 *.zip
 .DS_Store
 Thumbs.db
 *.log
 **/data/db.json.tmp.*
-
+**/data/evidence/*
+!**/data/evidence/.gitkeep

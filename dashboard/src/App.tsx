@@ -18,6 +18,7 @@ import SettingsPage from "./pages/SettingsPage";
 import ProductsPage from "./pages/ProductsPage";
 import FoundersPage from "./pages/FoundersPage";
 import CareersPage from "./pages/CareersPage";
+import WhatsAppPage from "./pages/WhatsAppPage";
 
 const queryClient = new QueryClient();
 
@@ -42,6 +43,7 @@ const App = () => (
           >
             <Route path="/" element={<OverviewPage />} />
             <Route path="/inquiries" element={<InquiriesPage />} />
+            <Route path="/whatsapp" element={<WhatsAppPage />} />
             <Route path="/careers" element={<CareersPage />} />
             <Route path="/products" element={<ProductsPage />} />
             <Route path="/founders" element={<FoundersPage />} />
@@ -55,6 +57,7 @@ const App = () => (
             <Route path="/admin" element={<Navigate to="/" replace />} />
             <Route path="/admin/overview" element={<Navigate to="/" replace />} />
             <Route path="/admin/inquiries" element={<Navigate to="/inquiries" replace />} />
+            <Route path="/admin/whatsapp" element={<Navigate to="/whatsapp" replace />} />
             <Route path="/admin/careers" element={<Navigate to="/careers" replace />} />
             <Route path="/admin/products" element={<Navigate to="/products" replace />} />
             <Route path="/admin/founders" element={<Navigate to="/founders" replace />} />

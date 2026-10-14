@@ -95,7 +95,24 @@ export const PrivacyPolicyPage = () => {
 
             <section className="p-6 rounded-2xl bg-card/50 border border-border/60 space-y-3">
               <h2 className="text-base md:text-lg font-bold text-foreground flex items-center gap-2">
-                <span className="w-6 h-6 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-xs font-mono">4</span>
+                <span className="w-6 h-6 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-xs font-mono">4</span>
+                Meta WhatsApp Business API &amp; Customer Messaging Disclosures
+              </h2>
+              <p>
+                Astitva Innovation integrates with the official <b>Meta WhatsApp Business Cloud API</b> (WhatsApp Business Platform) to facilitate direct project consultations, technical proposal deliveries, and client support communications:
+              </p>
+              <ul className="list-disc pl-5 space-y-1.5">
+                <li><b>Explicit Opt-In &amp; Consent:</b> We communicate via WhatsApp solely with individuals who have explicitly requested contact, submitted an architecture proposal inquiry, or engaged our engineering team directly on WhatsApp (+91 7233882089).</li>
+                <li><b>24-Hour Customer Service Window:</b> Free-form consultative messages are strictly restricted to within 24 hours of a user's most recent inbound message. Outside this 24-hour window, only pre-approved Meta utility or transactional templates are dispatched.</li>
+                <li><b>Data Processed via WhatsApp:</b> Transmitted messages, delivery timestamps, phone numbers, and message status updates (sent, delivered, read) are processed securely through Meta Graph API endpoints with cryptographic signature validation (HMAC-SHA256).</li>
+                <li><b>No Third-Party Data Sharing:</b> WhatsApp contact information is never sold, leased, or shared with third-party advertisers.</li>
+                <li><b>Instant Opt-Out / Revocation:</b> Clients can opt out of WhatsApp communications at any time by replying <b>STOP</b>, <b>UNSUBSCRIBE</b>, or emailing <b>privacy@astitvainnovation.in</b>. Your number will be immediately suppressed from future automated notifications.</li>
+              </ul>
+            </section>
+
+            <section className="p-6 rounded-2xl bg-card/50 border border-border/60 space-y-3">
+              <h2 className="text-base md:text-lg font-bold text-foreground flex items-center gap-2">
+                <span className="w-6 h-6 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-xs font-mono">5</span>
                 Non-Disclosure (NDA) &amp; Client Intellectual Property
               </h2>
               <p>

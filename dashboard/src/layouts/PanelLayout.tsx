@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Link, NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -18,7 +18,8 @@ import {
   ChevronRight,
   Package,
   UserCheck,
-  Briefcase
+  Briefcase,
+  MessageSquare
 } from "lucide-react";
 import { authService } from "../auth/authService";
 import { APP_CONFIG } from "../constants/config";
@@ -29,6 +30,7 @@ export const PanelLayout = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const currentAdmin = authService.getCurrentAdmin() || "AST-ADMIN-01";
 
@@ -64,6 +66,7 @@ export const PanelLayout = () => {
   const navItems = [
     { to: "/", label: "Overview", icon: LayoutDashboard },
     { to: "/inquiries", label: "Inquiries & Leads", icon: Users },
+    { to: "/whatsapp", label: "WhatsApp Platform", icon: MessageSquare },
     { to: "/careers", label: "Careers & Hiring", icon: Briefcase },
     { to: "/products", label: "Products & Apps", icon: Package },
     { to: "/founders", label: "Founders & Team", icon: UserCheck },
@@ -98,30 +101,71 @@ export const PanelLayout = () => {
 
           {/* Navigation Links */}
           <nav className="space-y-1.5">
-            {navItems.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.to === "/"}
-                className={({ isActive }) =>
-                  `flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all ${
-                    isActive
-                      ? "bg-primary text-white shadow-md shadow-primary/20"
-                      : "text-muted-foreground hover:text-foreground hover:bg-card/80"
-                  }`
-                }
-              >
-                {({ isActive }) => (
-                  <>
-                    <div className="flex items-center gap-2.5">
-                      <item.icon className="w-4 h-4 shrink-0" />
-                      <span>{item.label}</span>
+            {navItems.map((item) => {
+              const isWhatsApp = item.to === "/whatsapp";
+              const isWhatsAppActive = location.pathname.startsWith("/whatsapp");
+              const currentTab = new URLSearchParams(location.search).get("tab") || "overview";
+
+              return (
+                <div key={item.to} className="space-y-1">
+                  <NavLink
+                    to={item.to}
+                    end={item.to === "/"}
+                    className={({ isActive }) =>
+                      `flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all ${
+                        isActive
+                          ? "bg-primary text-white shadow-md shadow-primary/20"
+                          : "text-muted-foreground hover:text-foreground hover:bg-card/80"
+                      }`
+                    }
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <div className="flex items-center gap-2.5">
+                          <item.icon className="w-4 h-4 shrink-0" />
+                          <span>{item.label}</span>
+                        </div>
+                        {isActive && <ChevronRight className="w-3.5 h-3.5" />}
+                      </>
+                    )}
+                  </NavLink>
+
+                  {/* WhatsApp Platform 11-Module Sub-Navigation */}
+                  {isWhatsApp && isWhatsAppActive && (
+                    <div className="pl-4 pr-1 py-1 space-y-0.5 border-l-2 border-primary/30 ml-4 my-1">
+                      {[
+                        { tab: "overview", label: "1. Overview" },
+                        { tab: "connection", label: "2. Connection & Config" },
+                        { tab: "chats", label: "3. Chats & Messages" },
+                        { tab: "templates", label: "4. Message Templates" },
+                        { tab: "contacts", label: "5. Contacts & Opt-in" },
+                        { tab: "webhooks", label: "6. Webhooks & Events" },
+                        { tab: "delivery-logs", label: "7. Delivery Logs" },
+                        { tab: "evidence", label: "8. Evidence & Screencast" },
+                        { tab: "checklist", label: "9. App Review Checklist" },
+                        { tab: "diagnostics", label: "10. Diagnostics & Logs" },
+                        { tab: "security", label: "11. Security & RBAC" },
+                      ].map((sub) => {
+                        const isSubActive = currentTab === sub.tab || (sub.tab === "chats" && currentTab === "messages");
+                        return (
+                          <Link
+                            key={sub.tab}
+                            to={`/whatsapp?tab=${sub.tab}`}
+                            className={`block px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors ${
+                              isSubActive
+                                ? "bg-primary/20 text-primary font-semibold"
+                                : "text-muted-foreground hover:text-foreground hover:bg-card/50"
+                            }`}
+                          >
+                            {sub.label}
+                          </Link>
+                        );
+                      })}
                     </div>
-                    {isActive && <ChevronRight className="w-3.5 h-3.5" />}
-                  </>
-                )}
-              </NavLink>
-            ))}
+                  )}
+                </div>
+              );
+            })}
           </nav>
         </div>
 

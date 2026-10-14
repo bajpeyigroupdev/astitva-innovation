@@ -134,7 +134,8 @@ echo ""
 # 5. DEPLOY BACKEND NODE.JS API SERVICE & PM2
 # ------------------------------------------------------------------------------
 echo -e "${YELLOW}[Step 5/8] Deploying Node.js Backend API Service to /www/wwwroot/astitva-api...${NC}"
-mkdir -p /www/wwwroot/astitva-api/data
+mkdir -p /www/wwwroot/astitva-api/data/evidence
+chmod 775 /www/wwwroot/astitva-api/data/evidence 2>/dev/null || true
 
 if [ -d server ]; then
   cp -r server/* /www/wwwroot/astitva-api/
@@ -142,15 +143,19 @@ elif [ -d /root/astitva-deploy/server ]; then
   cp -r /root/astitva-deploy/server/* /www/wwwroot/astitva-api/
 fi
 
-# Write production environment variables with bcrypt hash
-cat << 'EOF' > /www/wwwroot/astitva-api/.env
+# Write production environment variables with bcrypt hash and WhatsApp Platform defaults
+if [ ! -f /www/wwwroot/astitva-api/.env ]; then
+  cat << 'EOF' > /www/wwwroot/astitva-api/.env
 PORT=5000
 NODE_ENV=production
 ADMIN_USERNAME=AST-ADMIN-01
 ADMIN_PASSWORD_HASH=$2a$12$x/cbb5K0pGnT3xL.Yv519.hOJDes5YlhRgvZNOyNlWRyRCJMRxyLa
 JWT_SECRET=6c889f73c3dd3abbcd8271ce6f6b9b459c3ad6ca5703e44f2def00004706312ce61e320ab92e6fbc6786495d813ff269
 ALLOWED_ORIGINS=https://astitvainnovation.in,https://www.astitvainnovation.in,https://b2b.astitvainnovation.in
+WHATSAPP_VERIFY_TOKEN=astitva_wa_verify_token_2026_secure
+WHATSAPP_API_VERSION=v20.0
 EOF
+fi
 
 chmod 600 /www/wwwroot/astitva-api/.env
 echo -e "${GREEN}✓ Created production server .env (chmod 600 secured)${NC}"
@@ -238,6 +243,9 @@ WEB_API=$(curl -s -k -o /dev/null -w "%{http_code}" https://astitvainnovation.in
 # 6. B2B API Proxy
 B2B_API=$(curl -s -k -o /dev/null -w "%{http_code}" https://b2b.astitvainnovation.in/api/health 2>/dev/null || echo "ERR")
 
+# 7. WhatsApp Webhook Verification
+WA_WEBHOOK=$(curl -s -k "https://astitvainnovation.in/api/whatsapp/webhook?hub.mode=subscribe&hub.verify_token=astitva_wa_verify_token_2026_secure&hub.challenge=test_deploy" 2>/dev/null || echo "ERR")
+
 echo ""
 echo -e "${BLUE}======================================================================${NC}"
 echo -e "${BLUE}                      FINAL VERIFICATION TABLE                         ${NC}"
@@ -256,6 +264,7 @@ printf "%-30s | %-12s | %-24s\n" "Login & Auth Guard" "PASS" "Bcrypt / JWT serve
 printf "%-30s | %-12s | %-24s\n" "Inquiry API" "PASS" "Local API: ${API_LOCAL}"
 printf "%-30s | %-12s | %-24s\n" "Website API Proxy" "PASS" "Status: ${WEB_API}"
 printf "%-30s | %-12s | %-24s\n" "B2B API Proxy" "PASS" "Status: ${B2B_API}"
+printf "%-30s | %-12s | %-24s\n" "WhatsApp Webhook Challenge" "$([ "$WA_WEBHOOK" = "test_deploy" ] && echo "PASS" || echo "NOTICE")" "Response: ${WA_WEBHOOK}"
 printf "%-30s | %-12s | %-24s\n" "Database persistence" "PASS" "/data/db.json active"
 printf "%-30s | %-12s | %-24s\n" "FinTech sandbox" "PASS" "Tagged DEMO / SANDBOX"
 printf "%-30s | %-12s | %-24s\n" "SEO Meta" "PASS" "Canonical & OpenGraph"
