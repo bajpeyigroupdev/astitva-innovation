@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 import AdminAuthGuard from "./auth/AdminAuthGuard";
 import PanelLayout from "./layouts/PanelLayout";
+import WhatsAppErrorBoundary from "./components/WhatsAppErrorBoundary";
 
 import LoginPage from "./pages/LoginPage";
 import OverviewPage from "./pages/OverviewPage";
@@ -43,7 +44,14 @@ const App = () => (
           >
             <Route path="/" element={<OverviewPage />} />
             <Route path="/inquiries" element={<InquiriesPage />} />
-            <Route path="/whatsapp" element={<WhatsAppPage />} />
+            <Route
+              path="/whatsapp"
+              element={
+                <WhatsAppErrorBoundary>
+                  <WhatsAppPage />
+                </WhatsAppErrorBoundary>
+              }
+            />
             <Route path="/careers" element={<CareersPage />} />
             <Route path="/products" element={<ProductsPage />} />
             <Route path="/founders" element={<FoundersPage />} />

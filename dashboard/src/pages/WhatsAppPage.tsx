@@ -263,7 +263,6 @@ export const WhatsAppPage: React.FC = () => {
         setSettingsWabaId(cfg.wabaId || "");
         setSettingsPhoneId(cfg.phoneNumberId || "");
         setSettingsAppId(cfg.appId || "");
-        setSettingsVerifyToken(cfg.verifyToken || "");
         setSettingsBusinessPhone(cfg.businessPhoneNumber || "");
         setSettingsDisplayName(cfg.displayName || "");
       }
@@ -280,8 +279,13 @@ export const WhatsAppPage: React.FC = () => {
       setApiLogs(aLogs || []);
       setEvidenceList(evd || []);
       if (chkRes) {
-        setChecklist(chkRes.data || []);
-        setChecklistSummary(chkRes.summary);
+        setChecklist(Array.isArray(chkRes.data) ? chkRes.data : []);
+        setChecklistSummary(chkRes.summary || {
+          total: 14,
+          verifiedCount: 0,
+          progressPercent: 0,
+          isReadyForSubmission: false,
+        });
       }
       setAuditLogs(audit || []);
       setSecurityPosture(sec);
@@ -410,12 +414,12 @@ export const WhatsAppPage: React.FC = () => {
         wabaId: settingsWabaId,
         phoneNumberId: settingsPhoneId,
         appId: settingsAppId,
-        verifyToken: settingsVerifyToken,
         businessPhoneNumber: settingsBusinessPhone,
         displayName: settingsDisplayName,
       };
       if (settingsToken.trim()) payload.token = settingsToken.trim();
       if (settingsAppSecret.trim()) payload.appSecret = settingsAppSecret.trim();
+      if (settingsVerifyToken.trim()) payload.verifyToken = settingsVerifyToken.trim();
 
       await whatsappService.updateConfig(payload);
       toast({
@@ -1341,11 +1345,17 @@ export const WhatsAppPage: React.FC = () => {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <label className="text-xs font-semibold">Webhook Verify Token</label>
+                      <label className="text-xs font-semibold flex items-center justify-between">
+                        <span>Webhook Verify Token</span>
+                        {config?.hasVerifyToken && (
+                          <span className="text-[10px] text-emerald-400 font-mono">Configured</span>
+                        )}
+                      </label>
                       <Input
+                        type="password"
                         value={settingsVerifyToken}
                         onChange={(e) => setSettingsVerifyToken(e.target.value)}
-                        placeholder="astitva_wa_verify_token_2026_secure"
+                        placeholder={config?.hasVerifyToken ? "Enter a new token to rotate (leave blank to keep)" : "Enter webhook verify token"}
                         className="font-mono text-xs bg-background/60"
                       />
                     </div>

@@ -178,7 +178,7 @@ function createWhatsAppRouter({ getDb, saveDb, authenticateAdmin }) {
         tokenPreview: config.token ? `EAAG...${config.token.slice(-6)}` : '',
         appId: config.appId,
         hasAppSecret: Boolean(config.appSecret),
-        verifyToken: config.verifyToken,
+        hasVerifyToken: Boolean(config.verifyToken),
         apiVersion: config.apiVersion,
         callbackUrl: 'https://astitvainnovation.in/api/whatsapp/webhook',
         subscribedFields: ['messages', 'messaging_postbacks', 'message_template_status_update'],
@@ -1196,7 +1196,7 @@ function createWhatsAppRouter({ getDb, saveDb, authenticateAdmin }) {
     res.json({
       success: isConfigured,
       verified: isConfigured,
-      verifyToken: configuredToken,
+      verifyTokenConfigured: isConfigured,
       webhookUrl: 'https://astitvainnovation.in/api/whatsapp/webhook',
       subscribedFields: ['messages', 'messaging_postbacks', 'message_template_status_update'],
       signatureAlgorithm: 'HMAC-SHA256 (X-Hub-Signature-256 header)',

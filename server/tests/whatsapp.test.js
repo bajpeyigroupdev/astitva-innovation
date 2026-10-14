@@ -1,14 +1,16 @@
 const assert = require('assert');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
+const express = require('express');
 const whatsappClient = require('../whatsapp/whatsappClient');
 const whatsappWebhook = require('../whatsapp/whatsappWebhook');
 const checklistEngine = require('../whatsapp/checklistEngine');
 const evidenceManager = require('../whatsapp/evidenceManager');
+const createWhatsAppRouter = require('../whatsapp/whatsappRoutes');
 
 console.log('======================================================================');
 console.log('ASTITVA INNOVATION — META WHATSAPP PLATFORM COMPREHENSIVE TEST SUITE');
-console.log('Covering all 19 Verification Areas specified in Master Prompt (Phase 6)');
+console.log('Covering all 20 WhatsApp API and security verification areas');
 console.log('======================================================================\n');
 
 let passedTests = 0;
@@ -554,6 +556,41 @@ async function runAllTests() {
 
     assert.ok(Array.isArray(legacyDb.whatsappContacts));
     assert.ok(Array.isArray(legacyDb.whatsappDeliveryLogs));
+  });
+
+  // -------------------------------------------------------------
+  // TEST 20: Webhook verification secrets are never returned to clients
+  // -------------------------------------------------------------
+  await runTest('20. WhatsApp configuration and diagnostics redact webhook verify token', async () => {
+    const app = express();
+    const testDb = { whatsappConfig: { verifyToken: 'test-only-webhook-token' } };
+    app.use('/api/whatsapp', createWhatsAppRouter({
+      getDb: () => testDb,
+      saveDb: () => {},
+      authenticateAdmin: (req, res, next) => next(),
+    }));
+
+    const server = app.listen(0, '127.0.0.1');
+    try {
+      await new Promise((resolve, reject) => {
+        server.once('listening', resolve);
+        server.once('error', reject);
+      });
+      const { port } = server.address();
+      const configResponse = await fetch(`http://127.0.0.1:${port}/api/whatsapp/config`);
+      const configPayload = await configResponse.json();
+      assert.strictEqual(configPayload.data.hasVerifyToken, true);
+      assert.strictEqual(Object.prototype.hasOwnProperty.call(configPayload.data, 'verifyToken'), false);
+
+      const diagnosticsResponse = await fetch(`http://127.0.0.1:${port}/api/whatsapp/webhooks/test-challenge`, {
+        method: 'POST',
+      });
+      const diagnosticsPayload = await diagnosticsResponse.json();
+      assert.strictEqual(diagnosticsPayload.verifyTokenConfigured, true);
+      assert.strictEqual(Object.prototype.hasOwnProperty.call(diagnosticsPayload, 'verifyToken'), false);
+    } finally {
+      await new Promise((resolve, reject) => server.close((err) => err ? reject(err) : resolve()));
+    }
   });
 
   console.log('\n----------------------------------------------------------------------');

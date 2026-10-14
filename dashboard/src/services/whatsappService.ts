@@ -18,6 +18,17 @@ import {
 
 const getApiBase = () => import.meta.env.VITE_API_URL || '';
 
+const EMPTY_CHECKLIST_SUMMARY = {
+  total: 14,
+  verifiedCount: 0,
+  progressPercent: 0,
+  isReadyForSubmission: false,
+};
+
+function asArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? value as T[] : [];
+}
+
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const token = authService.getToken();
   const headers = new Headers(options.headers || {});
@@ -107,7 +118,7 @@ export const whatsappService = {
   // 3. Chats & Messaging
   async getConversations(): Promise<WhatsAppConversation[]> {
     const res = await request<{ success: boolean; data: WhatsAppConversation[] }>('/api/whatsapp/conversations');
-    return res.data || [];
+    return asArray<WhatsAppConversation>(res?.data);
   },
 
   async getMessages(params?: { conversationId?: string; status?: string; direction?: string; search?: string; page?: number; limit?: number }): Promise<{
@@ -124,7 +135,7 @@ export const whatsappService = {
 
     const queryString = query.toString() ? `?${query.toString()}` : '';
     const res = await request<{ success: boolean; data: WhatsAppMessage[]; pagination: any }>(`/api/whatsapp/messages${queryString}`);
-    return { data: res.data || [], pagination: res.pagination };
+    return { data: asArray<WhatsAppMessage>(res?.data), pagination: res?.pagination };
   },
 
   async sendTextMessage(payload: { to: string; text: string; previewUrl?: boolean }): Promise<any> {
@@ -161,7 +172,7 @@ export const whatsappService = {
   // 4. Message Templates
   async getTemplates(): Promise<WhatsAppTemplate[]> {
     const res = await request<{ success: boolean; data: WhatsAppTemplate[] }>('/api/whatsapp/templates');
-    return res.data || [];
+    return asArray<WhatsAppTemplate>(res?.data);
   },
 
   async syncTemplates(): Promise<{ success: boolean; count: number; data: WhatsAppTemplate[] }> {
@@ -192,7 +203,7 @@ export const whatsappService = {
 
     const queryString = query.toString() ? `?${query.toString()}` : '';
     const res = await request<{ success: boolean; data: WhatsAppContact[]; pagination: any }>(`/api/whatsapp/contacts${queryString}`);
-    return { data: res.data || [], pagination: res.pagination };
+    return { data: asArray<WhatsAppContact>(res?.data), pagination: res?.pagination };
   },
 
   async createContact(payload: { phone: string; name?: string; consentStatus?: string; consentSource?: string; notes?: string; tags?: string[] }): Promise<any> {
@@ -234,7 +245,7 @@ export const whatsappService = {
   // 6. Webhooks & Events
   async getWebhookLogs(): Promise<WhatsAppWebhookLog[]> {
     const res = await request<{ success: boolean; data: WhatsAppWebhookLog[] }>('/api/whatsapp/webhooks/logs');
-    return res.data || [];
+    return asArray<WhatsAppWebhookLog>(res?.data);
   },
 
   async testWebhookChallenge(): Promise<any> {
@@ -258,7 +269,7 @@ export const whatsappService = {
 
     const queryString = query.toString() ? `?${query.toString()}` : '';
     const res = await request<{ success: boolean; data: WhatsAppDeliveryLog[]; pagination: any }>(`/api/whatsapp/delivery-logs${queryString}`);
-    return { data: res.data || [], pagination: res.pagination };
+    return { data: asArray<WhatsAppDeliveryLog>(res?.data), pagination: res?.pagination };
   },
 
   getDeliveryLogsExportUrl(): string {
@@ -274,7 +285,7 @@ export const whatsappService = {
 
     const queryString = query.toString() ? `?${query.toString()}` : '';
     const res = await request<{ success: boolean; data: WhatsAppEvidence[] }>(`/api/whatsapp/evidence${queryString}`);
-    return res.data || [];
+    return asArray<WhatsAppEvidence>(res?.data);
   },
 
   async uploadEvidence(payload: {
@@ -323,7 +334,13 @@ export const whatsappService = {
       data: WhatsAppChecklistItem[];
       summary: { total: number; verifiedCount: number; progressPercent: number; isReadyForSubmission: boolean };
     }>('/api/whatsapp/checklist');
-    return { data: res.data || [], summary: res.summary };
+    const summary = res?.summary;
+    return {
+      data: asArray<WhatsAppChecklistItem>(res?.data),
+      summary: summary && typeof summary === 'object'
+        ? { ...EMPTY_CHECKLIST_SUMMARY, ...summary }
+        : EMPTY_CHECKLIST_SUMMARY,
+    };
   },
 
   async runVerificationScan(): Promise<WhatsAppChecklistItem[]> {
@@ -352,12 +369,12 @@ export const whatsappService = {
   // 10. Diagnostics & API Logs
   async getApiLogs(): Promise<WhatsAppApiLog[]> {
     const res = await request<{ success: boolean; data: WhatsAppApiLog[] }>('/api/whatsapp/logs');
-    return res.data || [];
+    return asArray<WhatsAppApiLog>(res?.data);
   },
 
   async getErrorDictionary(): Promise<WhatsAppErrorGuide[]> {
     const res = await request<{ success: boolean; data: WhatsAppErrorGuide[] }>('/api/whatsapp/diagnostics/errors');
-    return res.data || [];
+    return asArray<WhatsAppErrorGuide>(res?.data);
   },
 
   // 11. Security & Permissions
@@ -368,6 +385,6 @@ export const whatsappService = {
 
   async getAuditLogs(): Promise<WhatsAppAuditLog[]> {
     const res = await request<{ success: boolean; data: WhatsAppAuditLog[] }>('/api/whatsapp/audit-logs');
-    return res.data || [];
+    return asArray<WhatsAppAuditLog>(res?.data);
   },
 };

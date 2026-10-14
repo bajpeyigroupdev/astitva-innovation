@@ -15,7 +15,7 @@ export interface WhatsAppConfig {
   tokenPreview?: string;
   appId?: string;
   hasAppSecret?: boolean;
-  verifyToken: string;
+  hasVerifyToken?: boolean;
   apiVersion: string;
   callbackUrl?: string;
   subscribedFields?: string[];
