@@ -26,7 +26,7 @@ export const LoginPage = () => {
     setIsLoading(true);
 
     try {
-      const result = await authService.login(username, password);
+      const result = await authService.login(username.trim(), password);
       if (result.success) {
         toast({
           title: "Authentication Successful",

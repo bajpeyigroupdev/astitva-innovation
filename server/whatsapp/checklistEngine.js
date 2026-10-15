@@ -126,28 +126,46 @@ class ChecklistEngine {
    * Run automated audit across database and configuration to determine real verification state
    */
   evaluateChecklist(db, config) {
-    const configData = config || db?.whatsappConfig || {};
+    const configData = {
+      ...(db?.whatsappConfig || {}),
+      ...(config || {}),
+    };
     const messages = Array.isArray(db?.whatsappMessages) ? db.whatsappMessages : [];
     const webhookLogs = Array.isArray(db?.whatsappWebhookLogs) ? db.whatsappWebhookLogs : [];
-    const apiLogs = Array.isArray(db?.whatsappApiLogs) ? db.whatsappApiLogs : [];
+    const apiLogs = Array.isArray(db?.whatsappApiLogs)
+      ? db.whatsappApiLogs
+      : (Array.isArray(config?.apiLogs) ? config.apiLogs : []);
     const evidence = Array.isArray(db?.whatsappEvidence) ? db.whatsappEvidence : [];
     const contacts = Array.isArray(db?.whatsappContacts) ? db.whatsappContacts : [];
     const savedChecklist = Array.isArray(db?.whatsappChecklist) ? db.whatsappChecklist : [];
+    const templates = Array.isArray(db?.whatsappTemplates) ? db.whatsappTemplates : [];
 
     const getSaved = (id) => savedChecklist.find((item) => item.id === id);
 
-    // 1. Business Account Connected
-    const isWabaConnected = Boolean(
-      configData.wabaId &&
-      configData.status === 'Connected' &&
-      configData.lastSync
+    // 1. Meta WhatsApp Business Account Connected (chk-waba-connected)
+    // Decoupled from phone verification: only requires valid WABA ID, token, and verified API connectivity
+    const hasValidWabaId = Boolean(configData.wabaId);
+    const hasTokenOrConnected = Boolean(
+      configData.token ||
+      config?.token ||
+      configData.hasToken ||
+      configData.status === 'Connected'
     );
+    const isApiConnected = Boolean(
+      configData.apiConnectivity === 'CONNECTED' ||
+      (configData.lastSync && configData.status !== 'Error') ||
+      apiLogs.some((l) => (l.endpoint?.includes(configData.wabaId) || l.endpoint?.includes('message_templates')) && l.success)
+    );
+    const isWabaConnected = Boolean(hasValidWabaId && hasTokenOrConnected && isApiConnected);
 
-    // 2. Production Phone Number Registered
-    const isPhoneRegistered = Boolean(
-      configData.phoneNumberId &&
-      (configData.codeVerificationStatus === 'VERIFIED' || configData.qualityRating)
-    );
+    // 2. Production Phone Number Registered & Verified (chk-phone-registered)
+    // Strictly evaluated using actual Meta response fields; does NOT infer registration from HTTP 200
+    const hasPhoneId = Boolean(configData.phoneNumberId);
+    const isCodeVerified = configData.codeVerificationStatus === 'VERIFIED';
+    const isNameApproved = configData.nameStatus === 'APPROVED' ||
+      configData.nameStatus === 'AVAILABLE_WITHOUT_REVIEW' ||
+      (configData.nameStatus !== 'DECLINED' && configData.nameStatus !== 'PENDING_REVIEW' && (Boolean(configData.displayName) || isCodeVerified));
+    const isPhoneRegistered = Boolean(hasPhoneId && isCodeVerified && isNameApproved);
 
     // 3. Payment Method Configured (Can be verified via config flag or manual confirmation)
     const isPaymentConfigured = Boolean(
@@ -156,7 +174,9 @@ class ChecklistEngine {
     );
 
     // 4. Required API Calls Tested Successfully
-    const hasSuccessfulApiCall = apiLogs.some((l) => l.success === true);
+    const allApiLogs = apiLogs.length > 0 ? apiLogs : (Array.isArray(db?.whatsappApiLogs) ? db.whatsappApiLogs : []);
+    const successfulApiLogs = allApiLogs.filter((l) => l.success === true);
+    const hasSuccessfulApiCall = successfulApiLogs.length > 0;
 
     // 5. Webhook Verification Successful
     const isWebhookVerified = Boolean(
@@ -191,8 +211,17 @@ class ChecklistEngine {
     // 11. Permission: messaging
     const isMessagingPermissionReady = isMessagingTested && isOptInEnforced;
 
-    // 12. Permission: management
-    const isManagementPermissionReady = isWabaConnected && isPhoneRegistered;
+    // 12. Permission: management (chk-perm-management)
+    // Evaluates WABA asset access, template synchronization, and approved template availability separately
+    const approvedTemplates = templates.filter((t) => t.status === 'APPROVED');
+    const hasApprovedTemplate = approvedTemplates.length > 0;
+    const hasUnapprovedTemplatesOnly = templates.length > 0 && approvedTemplates.length === 0;
+    const isManagementPermissionReady = Boolean(
+      isWabaConnected &&
+      isPhoneRegistered &&
+      !hasUnapprovedTemplatesOnly &&
+      configData.templateApprovalStatus !== 'PERMISSION_OR_FETCH_ERROR'
+    );
 
     // 13. Reviewer instructions
     const isReviewerInstructionsReady = Boolean(
@@ -204,30 +233,46 @@ class ChecklistEngine {
       'chk-perm-messaging': {
         verified: isMessagingPermissionReady,
         detail: isMessagingPermissionReady
-          ? 'whatsapp_business_messaging verified: 24h window enforced and consent tracking active.'
-          : 'Pending: Test both outbound message and inbound message with consent verification.',
-        missingAction: isMessagingPermissionReady ? 'None' : 'Send an authorized test message and reply from recipient.',
+          ? 'whatsapp_business_messaging verified: 24h window enforced, outbound/inbound verified, and consent tracking active.'
+          : `Pending: Outbound send (${hasOutbound ? 'PASS' : 'PENDING'}), Inbound reply (${hasInbound ? 'PASS' : 'PENDING'}), Consent (${isOptInEnforced ? 'PASS' : 'PENDING'}).`,
+        missingAction: isMessagingPermissionReady ? 'None' : 'Complete 1 authorized test send, reply from recipient, and record contact consent.',
       },
       'chk-perm-management': {
         verified: isManagementPermissionReady,
         detail: isManagementPermissionReady
-          ? 'whatsapp_business_management verified: WABA sync and phone number metadata active.'
-          : 'Pending: Connect WABA ID and Phone Number ID to complete management synchronization.',
-        missingAction: isManagementPermissionReady ? 'None' : 'Sync account details via Meta Graph API.',
+          ? `whatsapp_business_management verified: WABA management active (${templates.length} template(s) synced, ${approvedTemplates.length} approved, Account Review: ${configData.accountReviewStatus || 'APPROVED'}).`
+          : (isWabaConnected && templates.length > 0 && !hasApprovedTemplate)
+            ? `Pending: WABA connected, but 0 of ${templates.length} message template(s) are approved. Meta template approval required.`
+            : (isWabaConnected && templates.length === 0)
+              ? 'Pending: WABA connected, but message templates not synced. Sync templates via Meta Graph API.'
+              : 'Pending: Connect WABA ID and verify WhatsApp Business Management permission.',
+        missingAction: isManagementPermissionReady
+          ? 'None'
+          : (isWabaConnected && templates.length > 0 && !hasApprovedTemplate)
+            ? 'Submit message templates for approval in Meta WhatsApp Manager.'
+            : (isWabaConnected && templates.length === 0)
+              ? 'Sync account details and templates via Meta Graph API.'
+              : 'Connect WABA ID and grant whatsapp_business_management permission to access token.',
       },
       'chk-waba-connected': {
         verified: isWabaConnected,
         detail: isWabaConnected
-          ? `Connected (WABA: ${configData.wabaId})`
+          ? `Connected (WABA: ${configData.wabaId}, API: CONNECTED, Account Review: ${configData.accountReviewStatus || 'APPROVED'})`
           : 'Pending: Meta Business connection or valid token required.',
         missingAction: isWabaConnected ? 'None' : 'Obtain System User Access Token and WABA ID in Meta Business Manager.',
       },
       'chk-phone-registered': {
         verified: isPhoneRegistered,
         detail: isPhoneRegistered
-          ? `Verified (Phone ID: ${configData.phoneNumberId}, Quality: ${configData.qualityRating || 'GREEN'})`
-          : 'Pending: Phone number registration on Meta Cloud API needed.',
-        missingAction: isPhoneRegistered ? 'None' : 'Register phone number in Meta App Dashboard > WhatsApp > Configuration.',
+          ? `Verified (Phone ID: ${configData.phoneNumberId}, Code Status: VERIFIED, Name Status: ${configData.nameStatus || 'APPROVED'}, Quality: ${configData.qualityRating || 'GREEN'})`
+          : (hasPhoneId && !isCodeVerified)
+            ? `Pending: Phone ID ${configData.phoneNumberId} accessible via API, but two-step verification code status is ${configData.codeVerificationStatus || 'NOT_VERIFIED'}. PIN registration required.`
+            : 'Pending: Production Phone Number ID registration on Meta Cloud API needed.',
+        missingAction: isPhoneRegistered
+          ? 'None'
+          : (hasPhoneId && !isCodeVerified)
+            ? 'Complete two-step verification PIN registration in Meta WhatsApp Manager or via Cloud API register endpoint.'
+            : 'Register phone number in Meta App Dashboard > WhatsApp > Configuration.',
       },
       'chk-payment-configured': {
         verified: isPaymentConfigured,
@@ -239,7 +284,7 @@ class ChecklistEngine {
       'chk-api-calls-tested': {
         verified: hasSuccessfulApiCall,
         detail: hasSuccessfulApiCall
-          ? `${apiLogs.filter((l) => l.success).length} successful API calls logged.`
+          ? `${successfulApiLogs.length} successful API calls logged.`
           : 'Pending: Test at least one live Graph API call.',
         missingAction: hasSuccessfulApiCall ? 'None' : 'Run Account Sync or send test message.',
       },
@@ -292,8 +337,9 @@ class ChecklistEngine {
       },
     };
 
-    // Overall submission status depends on all preceding items
-    const allPrerequisitesMet = Object.values(automatedResults).every((r) => r.verified);
+    // Overall submission status depends on all preceding prerequisite items
+    const prerequisiteItemIds = CHECKLIST_ITEMS.map((i) => i.id).filter((id) => id !== 'chk-submission-status');
+    const allPrerequisitesMet = prerequisiteItemIds.every((id) => automatedResults[id]?.verified);
     automatedResults['chk-submission-status'] = {
       verified: allPrerequisitesMet,
       detail: allPrerequisitesMet
@@ -302,12 +348,20 @@ class ChecklistEngine {
       missingAction: allPrerequisitesMet ? 'Submit in Meta Developer Portal' : 'Resolve all pending items listed above.',
     };
 
-    // Merge static schema with calculated statuses and manual notes
+    // Merge static schema with calculated statuses; automated items require real evidence
     return CHECKLIST_ITEMS.map((item) => {
       const saved = getSaved(item.id) || {};
       const auto = automatedResults[item.id] || { verified: false, detail: 'Not verified', missingAction: 'Investigate item' };
 
-      const finalVerified = saved.manuallyVerified !== undefined ? saved.manuallyVerified : auto.verified;
+      // Strictly enforce: automated code & Meta API items cannot be bypassed without actual evidence
+      let finalVerified;
+      if (['chk-payment-configured', 'chk-privacy-policy-checked', 'chk-reviewer-instructions'].includes(item.id)) {
+        finalVerified = saved.manuallyVerified !== undefined ? saved.manuallyVerified : auto.verified;
+      } else if (item.id === 'chk-submission-status') {
+        finalVerified = allPrerequisitesMet;
+      } else {
+        finalVerified = auto.verified;
+      }
 
       return {
         ...item,

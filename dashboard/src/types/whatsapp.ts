@@ -17,6 +17,14 @@ export interface WhatsAppConfig {
   hasAppSecret?: boolean;
   hasVerifyToken?: boolean;
   apiVersion: string;
+  apiConnectivity?: 'CONNECTED' | 'DISCONNECTED' | 'ERROR';
+  accountReviewStatus?: string;
+  templateApprovalStatus?: string;
+  phoneRegistrationStatus?: string;
+  nameStatus?: string;
+  platformType?: string | null;
+  approvedTemplatesCount?: number;
+  totalTemplatesCount?: number;
   callbackUrl?: string;
   subscribedFields?: string[];
   embeddedSignup?: {
@@ -24,6 +32,7 @@ export interface WhatsAppConfig {
     configId: string;
   };
   connectedAt?: string | null;
+  connectionVerifiedAt?: string | null;
 }
 
 export interface WhatsAppConversation {
@@ -108,10 +117,15 @@ export interface WhatsAppDeliveryLog {
   operationType: 'TEXT_SEND' | 'TEMPLATE_SEND' | 'STATUS_UPDATE' | 'INBOUND_RECEIVE' | 'RETRY';
   httpStatus: number;
   metaErrorCode: number | null;
+  metaErrorSubcode?: number | null;
+  metaErrorType?: string | null;
+  metaErrorDetails?: string | null;
   metaErrorMessage: string | null;
+  fbtraceId?: string | null;
   retryCount: number;
   durationMs: number;
   success: boolean;
+  tenantId?: string;
 }
 
 export interface WhatsAppWebhookLog {
@@ -135,6 +149,11 @@ export interface WhatsAppApiLog {
   latencyMs: number;
   success: boolean;
   errorMessage?: string;
+  metaErrorCode?: number | null;
+  metaErrorSubcode?: number | null;
+  metaErrorType?: string | null;
+  metaErrorDetails?: string | null;
+  fbtraceId?: string | null;
 }
 
 export interface WhatsAppEvidence {

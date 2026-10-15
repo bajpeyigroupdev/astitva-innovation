@@ -27,6 +27,20 @@ class WhatsAppClient {
       verifyToken: process.env.WHATSAPP_VERIFY_TOKEN || dbConfig.verifyToken || '',
       apiVersion: process.env.WHATSAPP_API_VERSION || dbConfig.apiVersion || DEFAULT_GRAPH_VERSION,
       status: dbConfig.status || 'Disconnected',
+      lastSync: dbConfig.lastSync || null,
+      codeVerificationStatus: dbConfig.codeVerificationStatus || 'NOT_VERIFIED',
+      qualityRating: dbConfig.qualityRating || 'UNKNOWN',
+      nameStatus: dbConfig.nameStatus || 'UNKNOWN',
+      accountReviewStatus: dbConfig.accountReviewStatus || 'UNKNOWN',
+      templateApprovalStatus: dbConfig.templateApprovalStatus || 'UNKNOWN',
+      phoneRegistrationStatus: dbConfig.phoneRegistrationStatus || 'PENDING_VERIFICATION',
+      apiConnectivity: dbConfig.apiConnectivity || 'DISCONNECTED',
+      paymentConfigured: Boolean(dbConfig.paymentConfigured),
+      webhookVerified: Boolean(dbConfig.webhookVerified),
+      privacyPolicyVerified: Boolean(dbConfig.privacyPolicyVerified),
+      reviewerInstructionsReady: Boolean(dbConfig.reviewerInstructionsReady),
+      displayName: dbConfig.displayName || '',
+      businessPhoneNumber: dbConfig.businessPhoneNumber || '',
     };
   }
 
@@ -103,6 +117,7 @@ class WhatsAppClient {
     }
 
     const latencyMs = Date.now() - startTime;
+    const metaError = responseData?.error;
 
     // Log Graph API call in database
     if (db && saveDb) {
@@ -121,6 +136,11 @@ class WhatsAppClient {
           latencyMs,
           success,
           errorMessage,
+          metaErrorCode: metaError?.code || null,
+          metaErrorSubcode: metaError?.error_subcode || null,
+          metaErrorType: metaError?.type || null,
+          metaErrorDetails: metaError?.error_data?.details || null,
+          fbtraceId: metaError?.fbtrace_id || null,
         });
 
         // Keep last 250 API logs to manage database size
@@ -139,6 +159,11 @@ class WhatsAppClient {
       data: responseData,
       latencyMs,
       error: errorMessage,
+      errorCode: metaError?.code || null,
+      errorSubcode: metaError?.error_subcode || null,
+      errorType: metaError?.type || null,
+      errorDetails: metaError?.error_data?.details || null,
+      fbtraceId: metaError?.fbtrace_id || null,
     };
   }
 
@@ -153,7 +178,7 @@ class WhatsAppClient {
       };
     }
 
-    const fields = 'verified_name,code_verification_status,display_phone_number,quality_rating,platform_type,throughput,name_status';
+    const fields = 'id,verified_name,code_verification_status,display_phone_number,quality_rating,platform_type,throughput,name_status';
     return this.callGraphApi({
       endpoint: `/${config.phoneNumberId}?fields=${fields}`,
       method: 'GET',
@@ -440,7 +465,11 @@ class WhatsAppClient {
     operationType = 'TEXT_SEND',
     httpStatus = 200,
     metaErrorCode = null,
+    metaErrorSubcode = null,
+    metaErrorType = null,
+    metaErrorDetails = null,
     metaErrorMessage = null,
+    fbtraceId = null,
     retryCount = 0,
     durationMs = 0,
     success = true,
@@ -459,7 +488,11 @@ class WhatsAppClient {
       operationType,
       httpStatus,
       metaErrorCode,
-      metaErrorMessage: metaErrorMessage ? String(metaErrorMessage).slice(0, 300) : null,
+      metaErrorSubcode: metaErrorSubcode || null,
+      metaErrorType: metaErrorType || null,
+      metaErrorDetails: metaErrorDetails ? String(metaErrorDetails).slice(0, 500) : null,
+      metaErrorMessage: metaErrorMessage ? String(metaErrorMessage).slice(0, 500) : null,
+      fbtraceId: fbtraceId || null,
       retryCount,
       durationMs,
       success: Boolean(success),

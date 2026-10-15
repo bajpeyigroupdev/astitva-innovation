@@ -101,9 +101,57 @@ class WhatsAppWebhookHandler {
         const changes = Array.isArray(entry.changes) ? entry.changes : [];
 
         for (const change of changes) {
-          if (change.field !== 'messages') continue;
           const val = change.value;
           if (!val) continue;
+
+          // 1. Template Status Updates (Approved, Rejected, Paused, Disabled)
+          if (change.field === 'message_template_status_update') {
+            const templateId = String(val.message_template_id || '');
+            const templateName = val.message_template_name || '';
+            const newStatus = val.event || 'UNKNOWN';
+
+            if (Array.isArray(db.whatsappTemplates)) {
+              const tmpl = db.whatsappTemplates.find(
+                (t) => (templateId && String(t.id) === templateId) || (templateName && t.name === templateName)
+              );
+              if (tmpl) {
+                tmpl.status = newStatus;
+                tmpl.lastSyncedAt = new Date().toISOString();
+                if (val.reason) tmpl.rejectionReason = val.reason;
+              }
+            }
+
+            eventSummary = `Template "${templateName || templateId}" status update: ${newStatus}`;
+            processedCount++;
+            continue;
+          }
+
+          // 2. Phone Number Quality & Name Updates
+          if (change.field === 'phone_number_quality_update' || change.field === 'phone_number_name_update') {
+            if (!db.whatsappConfig) db.whatsappConfig = {};
+            if (val.current_limit) db.whatsappConfig.messagingLimitTier = val.current_limit;
+            if (val.event) db.whatsappConfig.qualityRating = val.event;
+            if (val.display_phone_number) db.whatsappConfig.businessPhoneNumber = val.display_phone_number;
+            if (val.verified_name) db.whatsappConfig.displayName = val.verified_name;
+            db.whatsappConfig.lastSync = new Date().toISOString();
+
+            eventSummary = `Phone update (${change.field}): ${val.event || val.verified_name || 'Received'}`;
+            processedCount++;
+            continue;
+          }
+
+          // 3. Account Review & Security Alerts
+          if (['account_update', 'account_review_update', 'account_alerts', 'security', 'calls'].includes(change.field)) {
+            eventSummary = `Meta Alert (${change.field}): ${val.event || val.decision || 'Received'}`;
+            processedCount++;
+            continue;
+          }
+
+          if (change.field !== 'messages') {
+            eventSummary = `Meta Webhook Event: ${change.field}`;
+            processedCount++;
+            continue;
+          }
 
           // Process Contact Information
           const contactsMap = {};

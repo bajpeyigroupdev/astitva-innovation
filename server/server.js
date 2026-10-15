@@ -189,7 +189,7 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
   // Artificial timing protection
   await new Promise(r => setTimeout(r, 200));
 
-  if (username.trim() !== configuredUser) {
+  if (username.trim().toUpperCase() !== configuredUser.trim().toUpperCase()) {
     return res.status(401).json({ success: false, error: "Access Denied: Invalid Administrator ID or Password." });
   }
 

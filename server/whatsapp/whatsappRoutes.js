@@ -34,6 +34,14 @@ function createWhatsAppRouter({ getDb, saveDb, authenticateAdmin }) {
       hasAppSecret: Boolean(activeConfig.appSecret),
       hasVerifyToken: Boolean(activeConfig.verifyToken),
       apiVersion: activeConfig.apiVersion,
+      apiConnectivity: dbConfig.apiConnectivity || (dbConfig.lastSync ? 'CONNECTED' : 'DISCONNECTED'),
+      accountReviewStatus: dbConfig.accountReviewStatus || 'UNKNOWN',
+      templateApprovalStatus: dbConfig.templateApprovalStatus || 'UNKNOWN',
+      phoneRegistrationStatus: dbConfig.phoneRegistrationStatus || (dbConfig.codeVerificationStatus === 'VERIFIED' ? 'REGISTERED_AND_VERIFIED' : 'PENDING_VERIFICATION'),
+      nameStatus: dbConfig.nameStatus || 'UNKNOWN',
+      platformType: dbConfig.platformType || null,
+      approvedTemplatesCount: dbConfig.approvedTemplatesCount ?? 0,
+      totalTemplatesCount: dbConfig.totalTemplatesCount ?? 0,
       callbackUrl: 'https://astitvainnovation.in/api/whatsapp/webhook',
       subscribedFields: ['messages', 'messaging_postbacks', 'message_template_status_update'],
       embeddedSignup: {
@@ -319,10 +327,11 @@ function createWhatsAppRouter({ getDb, saveDb, authenticateAdmin }) {
     }
 
     try {
-      const [phoneResult, wabaResult, phoneNumbersResult] = await Promise.all([
+      const [phoneResult, wabaResult, phoneNumbersResult, templatesResult] = await Promise.all([
         whatsappClient.getPhoneNumberDetails(config, db, saveDb),
         whatsappClient.getWabaDetails(config, db, saveDb),
         whatsappClient.getWabaPhoneNumbers(config, db, saveDb),
+        whatsappClient.getMessageTemplates(config, db, saveDb),
       ]);
 
       if (!db.whatsappConfig) db.whatsappConfig = {};
@@ -330,19 +339,24 @@ function createWhatsAppRouter({ getDb, saveDb, authenticateAdmin }) {
       const failedLookup = [phoneResult, wabaResult, phoneNumbersResult].find((result) => !result?.success || !result.data);
       if (failedLookup) {
         db.whatsappConfig.status = 'Error';
+        db.whatsappConfig.apiConnectivity = 'ERROR';
         db.whatsappConfig.connectionVerifiedAt = null;
         db.whatsappConfig.errorMessage = failedLookup.error || 'Meta did not verify the configured WABA and phone number.';
+        db.whatsappConfig.metaErrorCode = failedLookup.errorCode || null;
+        db.whatsappConfig.metaErrorSubcode = failedLookup.errorSubcode || null;
         if (!saveDb(db)) {
           return res.status(503).json({ success: false, error: 'Meta lookup failed and the connection status could not be saved.' });
         }
 
         logAudit(req.admin?.username, 'WHATSAPP_SYNC_FAILED', {
           error: db.whatsappConfig.errorMessage,
+          errorCode: failedLookup.errorCode,
         });
 
         return res.status(failedLookup.status || 502).json({
           success: false,
           error: db.whatsappConfig.errorMessage,
+          metaErrorCode: failedLookup.errorCode || null,
         });
       }
 
@@ -353,8 +367,11 @@ function createWhatsAppRouter({ getDb, saveDb, authenticateAdmin }) {
       const phoneBelongsToWaba = listedPhoneNumbers.some((phone) => String(phone.id) === config.phoneNumberId);
       if (returnedPhoneId !== config.phoneNumberId || returnedWabaId !== config.wabaId || !phoneBelongsToWaba) {
         db.whatsappConfig.status = 'Pending';
+        db.whatsappConfig.apiConnectivity = 'CONNECTED';
         db.whatsappConfig.connectionVerifiedAt = null;
-        db.whatsappConfig.errorMessage = 'Meta did not verify that the selected phone number belongs to the configured WABA.';
+        db.whatsappConfig.errorMessage = !phoneBelongsToWaba
+          ? `Meta verified API credentials, but Phone Number ID ${config.phoneNumberId} does not belong to WABA ${config.wabaId}.`
+          : 'Meta asset IDs returned by Graph API do not match configured WABA ID or Phone Number ID.';
         if (!saveDb(db)) {
           return res.status(503).json({ success: false, error: 'Asset verification failed and its status could not be saved.' });
         }
@@ -362,19 +379,94 @@ function createWhatsAppRouter({ getDb, saveDb, authenticateAdmin }) {
       }
 
       const timestamp = new Date().toISOString();
-      db.whatsappConfig.status = pData.code_verification_status === 'VERIFIED' ? 'Connected' : 'Pending';
+
+      // Core Meta API connectivity verified successfully
+      db.whatsappConfig.apiConnectivity = 'CONNECTED';
+      db.whatsappConfig.lastSync = timestamp;
+      db.whatsappConfig.connectionVerifiedAt = timestamp;
+
+      // Phone registration & verification status evaluated from actual Meta response fields
       db.whatsappConfig.displayName = pData.verified_name || db.whatsappConfig.displayName || 'Astitva Innovation';
       db.whatsappConfig.qualityRating = pData.quality_rating || 'UNKNOWN';
       db.whatsappConfig.codeVerificationStatus = pData.code_verification_status || 'NOT_VERIFIED';
+      db.whatsappConfig.nameStatus = pData.name_status || 'UNKNOWN';
+      db.whatsappConfig.platformType = pData.platform_type || null;
       db.whatsappConfig.businessPhoneNumber = pData.display_phone_number || db.whatsappConfig.businessPhoneNumber;
       db.whatsappConfig.messagingLimitTier = pData.throughput?.level || 'UNKNOWN';
-      db.whatsappConfig.lastSync = timestamp;
+      db.whatsappConfig.phoneRegistrationStatus = pData.code_verification_status === 'VERIFIED'
+        ? 'REGISTERED_AND_VERIFIED'
+        : 'PENDING_VERIFICATION';
+
+      // WABA account details & review status evaluated separately
+      db.whatsappConfig.accountReviewStatus = wabaResult.data?.account_review_status || 'UNKNOWN';
+      db.whatsappConfig.wabaName = wabaResult.data?.name || '';
+      db.whatsappConfig.currency = wabaResult.data?.currency || '';
+      db.whatsappConfig.timezoneId = wabaResult.data?.timezone_id || '';
+      db.whatsappConfig.messageTemplateNamespace = wabaResult.data?.message_template_namespace || '';
+
+      // Template list and approval status evaluated separately
+      if (templatesResult?.success && Array.isArray(templatesResult.data?.data)) {
+        const remoteTemplates = templatesResult.data.data;
+        db.whatsappTemplates = remoteTemplates.map((t) => ({
+          id: t.id,
+          name: t.name,
+          category: t.category,
+          language: t.language,
+          status: t.status,
+          components: t.components || [],
+          lastSyncedAt: timestamp,
+        }));
+        const approvedCount = db.whatsappTemplates.filter((t) => t.status === 'APPROVED').length;
+        const totalCount = db.whatsappTemplates.length;
+        db.whatsappConfig.approvedTemplatesCount = approvedCount;
+        db.whatsappConfig.totalTemplatesCount = totalCount;
+        db.whatsappConfig.templateApprovalStatus = approvedCount > 0
+          ? 'TEMPLATES_APPROVED'
+          : (totalCount > 0 ? 'PENDING_APPROVAL' : 'NO_TEMPLATES');
+      } else {
+        db.whatsappConfig.templateApprovalStatus = 'PERMISSION_OR_FETCH_ERROR';
+        db.whatsappConfig.templateErrorMessage = templatesResult?.error || 'Could not fetch message templates.';
+        db.whatsappConfig.approvedTemplatesCount = Array.isArray(db.whatsappTemplates)
+          ? db.whatsappTemplates.filter((t) => t.status === 'APPROVED').length
+          : 0;
+        db.whatsappConfig.totalTemplatesCount = Array.isArray(db.whatsappTemplates) ? db.whatsappTemplates.length : 0;
+      }
+
+      // Live status depends on actual phone verification
+      db.whatsappConfig.status = pData.code_verification_status === 'VERIFIED' ? 'Connected' : 'Pending';
       db.whatsappConfig.errorMessage = db.whatsappConfig.status === 'Connected'
         ? null
-        : 'The Meta phone number is accessible, but its verification status is not confirmed.';
-      db.whatsappConfig.connectionVerifiedAt = db.whatsappConfig.status === 'Connected' ? timestamp : null;
+        : `Meta API connected and assets verified, but phone two-step verification is pending (code_verification_status: ${pData.code_verification_status || 'NOT_VERIFIED'}).`;
       if (!db.whatsappConfig.connectedAt && db.whatsappConfig.status === 'Connected') {
         db.whatsappConfig.connectedAt = timestamp;
+      }
+
+      // Reconcile configured tenant with synced Meta credentials
+      ensureTenants(db);
+      const activeTenantId = db.activeWhatsAppTenantId || 'default';
+      const activeTenant = db.whatsappTenants.find((t) => t.id === activeTenantId) || db.whatsappTenants[0];
+      let tenantReconciled = false;
+      const tenantMismatches = [];
+
+      if (activeTenant) {
+        if (activeTenant.wabaId !== config.wabaId) {
+          tenantMismatches.push(`wabaId (${activeTenant.wabaId || 'empty'} -> ${config.wabaId})`);
+          activeTenant.wabaId = config.wabaId;
+          tenantReconciled = true;
+        }
+        if (activeTenant.phoneNumberId !== config.phoneNumberId) {
+          tenantMismatches.push(`phoneNumberId (${activeTenant.phoneNumberId || 'empty'} -> ${config.phoneNumberId})`);
+          activeTenant.phoneNumberId = config.phoneNumberId;
+          tenantReconciled = true;
+        }
+        if (pData.verified_name && activeTenant.displayName !== pData.verified_name) {
+          activeTenant.displayName = pData.verified_name;
+        }
+        if (pData.display_phone_number && activeTenant.businessPhoneNumber !== pData.display_phone_number) {
+          activeTenant.businessPhoneNumber = pData.display_phone_number;
+        }
+        activeTenant.status = db.whatsappConfig.status === 'Connected' ? 'Active' : 'Pending';
+        activeTenant.updatedAt = timestamp;
       }
 
       if (!saveDb(db)) {
@@ -383,24 +475,54 @@ function createWhatsAppRouter({ getDb, saveDb, authenticateAdmin }) {
 
       logAudit(req.admin?.username, 'WHATSAPP_SYNC_SUCCESS', {
         status: db.whatsappConfig.status,
+        apiConnectivity: db.whatsappConfig.apiConnectivity,
         wabaId: config.wabaId,
         phoneNumberId: config.phoneNumberId,
+        accountReviewStatus: db.whatsappConfig.accountReviewStatus,
+        templateApprovalStatus: db.whatsappConfig.templateApprovalStatus,
       });
 
       return res.json({
         success: true,
         message: db.whatsappConfig.status === 'Connected'
           ? 'Meta verified the WABA, phone-number association, and phone verification status.'
-          : 'Meta assets were found, but phone-number verification is still pending.',
+          : 'Meta API and assets verified. Phone-number two-step verification is pending.',
         data: {
           ...serializeWhatsAppConfig(db.whatsappConfig, config),
+          apiConnectivity: db.whatsappConfig.apiConnectivity,
+          accountReviewStatus: db.whatsappConfig.accountReviewStatus,
+          templateApprovalStatus: db.whatsappConfig.templateApprovalStatus,
+          phoneRegistrationStatus: db.whatsappConfig.phoneRegistrationStatus,
+          tenantReconciliation: {
+            tenantId: activeTenant?.id || 'default',
+            tenantName: activeTenant?.name || 'Primary',
+            syncedWabaId: config.wabaId,
+            syncedPhoneNumberId: config.phoneNumberId,
+            matched: tenantMismatches.length === 0,
+            reconciled: tenantReconciled,
+            mismatches: tenantMismatches,
+          },
           phoneDetails: {
             id: returnedPhoneId,
             verifiedName: pData.verified_name || null,
             codeVerificationStatus: pData.code_verification_status || 'NOT_VERIFIED',
+            nameStatus: pData.name_status || 'UNKNOWN',
+            platformType: pData.platform_type || null,
             displayPhoneNumber: pData.display_phone_number || null,
             qualityRating: pData.quality_rating || 'UNKNOWN',
             messagingLimitTier: pData.throughput?.level || 'UNKNOWN',
+          },
+          wabaDetails: {
+            id: returnedWabaId,
+            name: wabaResult.data.name || null,
+            accountReviewStatus: wabaResult.data.account_review_status || 'UNKNOWN',
+            currency: wabaResult.data.currency || null,
+            timezoneId: wabaResult.data.timezone_id || null,
+          },
+          templatesSummary: {
+            total: db.whatsappConfig.totalTemplatesCount,
+            approved: db.whatsappConfig.approvedTemplatesCount,
+            status: db.whatsappConfig.templateApprovalStatus,
           },
         },
       });
@@ -441,13 +563,16 @@ function createWhatsAppRouter({ getDb, saveDb, authenticateAdmin }) {
     const config = whatsappClient.resolveConfig(db);
     const dbConfig = db.whatsappConfig || {};
 
+    const activeWabaId = config.wabaId || dbConfig.wabaId || '';
+    const activePhoneId = config.phoneNumberId || dbConfig.phoneNumberId || '';
+
     const defaultTenant = {
       id: 'default',
       name: 'Astitva Innovation (Primary)',
       clientName: 'Astitva Innovation Inc.',
       clientEmail: 'contact@astitvainnovation.in',
-      wabaId: config.wabaId || dbConfig.wabaId || '',
-      phoneNumberId: config.phoneNumberId || dbConfig.phoneNumberId || '',
+      wabaId: activeWabaId,
+      phoneNumberId: activePhoneId,
       businessPhoneNumber: dbConfig.businessPhoneNumber || '+91 7233882089',
       displayName: dbConfig.displayName || 'Astitva Innovation',
       status: dbConfig.status || 'Active',
@@ -459,11 +584,11 @@ function createWhatsAppRouter({ getDb, saveDb, authenticateAdmin }) {
     if (defaultIndex === -1) {
       db.whatsappTenants.unshift(defaultTenant);
     } else {
-      if (!db.whatsappTenants[defaultIndex].wabaId && config.wabaId) {
-        db.whatsappTenants[defaultIndex].wabaId = config.wabaId;
+      if (activeWabaId && db.whatsappTenants[defaultIndex].wabaId !== activeWabaId) {
+        db.whatsappTenants[defaultIndex].wabaId = activeWabaId;
       }
-      if (!db.whatsappTenants[defaultIndex].phoneNumberId && config.phoneNumberId) {
-        db.whatsappTenants[defaultIndex].phoneNumberId = config.phoneNumberId;
+      if (activePhoneId && db.whatsappTenants[defaultIndex].phoneNumberId !== activePhoneId) {
+        db.whatsappTenants[defaultIndex].phoneNumberId = activePhoneId;
       }
       db.whatsappTenants[defaultIndex].isDefault = true;
     }
@@ -925,8 +1050,11 @@ function createWhatsAppRouter({ getDb, saveDb, authenticateAdmin }) {
         status: 'failed',
         timestamp: new Date().toISOString(),
         errorMessage: result.error || 'Failed to send WhatsApp message',
-        errorCode: result.data?.error?.code,
-        errorDetails: result.data?.error?.error_data?.details || result.data?.error?.message,
+        errorCode: result.errorCode || result.data?.error?.code,
+        errorSubcode: result.errorSubcode || result.data?.error?.error_subcode,
+        errorType: result.errorType || result.data?.error?.type,
+        errorDetails: result.errorDetails || result.data?.error?.error_data?.details || result.data?.error?.message,
+        fbtraceId: result.fbtraceId || result.data?.error?.fbtrace_id,
         rawPayload: result.data,
       });
 
@@ -936,8 +1064,12 @@ function createWhatsAppRouter({ getDb, saveDb, authenticateAdmin }) {
         to: cleanTo,
         operationType: 'TEXT_SEND',
         httpStatus: result.status || 400,
-        metaErrorCode: result.data?.error?.code,
+        metaErrorCode: result.errorCode || result.data?.error?.code,
+        metaErrorSubcode: result.errorSubcode || result.data?.error?.error_subcode,
+        metaErrorType: result.errorType || result.data?.error?.type,
+        metaErrorDetails: result.errorDetails || result.data?.error?.error_data?.details,
         metaErrorMessage: result.error,
+        fbtraceId: result.fbtraceId || result.data?.error?.fbtrace_id,
         retryCount: 0,
         durationMs,
         success: false,
@@ -1077,14 +1209,39 @@ function createWhatsAppRouter({ getDb, saveDb, authenticateAdmin }) {
         data: result.data,
       });
     } else {
+      const failId = `FAIL-${Date.now()}`;
+      if (!Array.isArray(db.whatsappMessages)) db.whatsappMessages = [];
+      db.whatsappMessages.push({
+        id: failId,
+        conversationId: cleanTo,
+        direction: 'outbound',
+        type: 'template',
+        text: `Template: ${templateName}`,
+        templateName,
+        templateLanguage: languageCode,
+        status: 'failed',
+        timestamp: new Date().toISOString(),
+        errorMessage: result.error || 'Failed to dispatch WhatsApp template message.',
+        errorCode: result.errorCode || result.data?.error?.code,
+        errorSubcode: result.errorSubcode || result.data?.error?.error_subcode,
+        errorType: result.errorType || result.data?.error?.type,
+        errorDetails: result.errorDetails || result.data?.error?.error_data?.details || result.data?.error?.message,
+        fbtraceId: result.fbtraceId || result.data?.error?.fbtrace_id,
+        rawPayload: result.data,
+      });
+
       whatsappClient.recordDeliveryLog(db, saveDb, {
         correlationId,
         messageId: null,
         to: cleanTo,
         operationType: 'TEMPLATE_SEND',
         httpStatus: result.status || 400,
-        metaErrorCode: result.data?.error?.code,
+        metaErrorCode: result.errorCode || result.data?.error?.code,
+        metaErrorSubcode: result.errorSubcode || result.data?.error?.error_subcode,
+        metaErrorType: result.errorType || result.data?.error?.type,
+        metaErrorDetails: result.errorDetails || result.data?.error?.error_data?.details,
         metaErrorMessage: result.error,
+        fbtraceId: result.fbtraceId || result.data?.error?.fbtrace_id,
         retryCount: 0,
         durationMs,
         success: false,
@@ -1233,14 +1390,37 @@ function createWhatsAppRouter({ getDb, saveDb, authenticateAdmin }) {
         data: result.data,
       });
     } else {
+      const failId = `FAIL-${Date.now()}`;
+      if (!Array.isArray(db.whatsappMessages)) db.whatsappMessages = [];
+      db.whatsappMessages.push({
+        id: failId,
+        conversationId: cleanTo,
+        direction: 'outbound',
+        type: resolvedType,
+        text: caption || `Media (${resolvedType})`,
+        status: 'failed',
+        timestamp: new Date().toISOString(),
+        errorMessage: result.error || 'Failed to dispatch WhatsApp media message.',
+        errorCode: result.errorCode || result.data?.error?.code,
+        errorSubcode: result.errorSubcode || result.data?.error?.error_subcode,
+        errorType: result.errorType || result.data?.error?.type,
+        errorDetails: result.errorDetails || result.data?.error?.error_data?.details || result.data?.error?.message,
+        fbtraceId: result.fbtraceId || result.data?.error?.fbtrace_id,
+        rawPayload: result.data,
+      });
+
       whatsappClient.recordDeliveryLog(db, saveDb, {
         correlationId,
         messageId: null,
         to: cleanTo,
         operationType: `MEDIA_${resolvedType.toUpperCase()}_SEND`,
         httpStatus: result.status || 400,
-        metaErrorCode: result.data?.error?.code,
+        metaErrorCode: result.errorCode || result.data?.error?.code,
+        metaErrorSubcode: result.errorSubcode || result.data?.error?.error_subcode,
+        metaErrorType: result.errorType || result.data?.error?.type,
+        metaErrorDetails: result.errorDetails || result.data?.error?.error_data?.details,
         metaErrorMessage: result.error,
+        fbtraceId: result.fbtraceId || result.data?.error?.fbtrace_id,
         retryCount: 0,
         durationMs,
         success: false,
@@ -2031,6 +2211,7 @@ function createWhatsAppRouter({ getDb, saveDb, authenticateAdmin }) {
   });
 
   router.get('/diagnostics/errors', authenticateAdmin, (req, res) => {
+    const db = getDb();
     const errorDictionary = [
       {
         code: 131047,
@@ -2063,10 +2244,34 @@ function createWhatsAppRouter({ getDb, saveDb, authenticateAdmin }) {
         solution: 'Generate a new Permanent System User Token in Meta Business Manager and update Configuration.',
       },
       {
+        code: 200,
+        title: 'Permission Denied / Missing Scope',
+        description: 'Request lacks whatsapp_business_messaging or whatsapp_business_management permission.',
+        solution: 'Grant required permissions to the System User Access Token in Meta Business Manager.',
+      },
+      {
         code: 100,
-        title: 'Invalid Parameter or Missing Permissions',
-        description: 'Request missing required parameter or app lacks whatsapp_business_messaging permission.',
-        solution: 'Inspect request payload in API logs and verify permission scopes in Meta Developer App.',
+        title: 'Invalid Parameter or Unknown Resource ID',
+        description: 'Graph API parameter invalid, or requested node / phone number ID does not exist (subcode 33).',
+        solution: 'Check Phone Number ID and WABA ID in Configuration against Meta Developer App dashboard.',
+      },
+      {
+        code: 132000,
+        title: 'Template Does Not Exist or Unapproved',
+        description: 'The requested message template has not been approved or is not present under this WABA.',
+        solution: 'Create and submit the message template in Meta WhatsApp Manager and wait for approval.',
+      },
+      {
+        code: 132001,
+        title: 'Template Name Not Found for Locale',
+        description: 'Template name does not exist in the specified language code (e.g. en_US).',
+        solution: 'Verify the template translation exists for the requested language code.',
+      },
+      {
+        code: 133004,
+        title: 'Phone Number Not Registered',
+        description: 'Phone number has not completed two-step verification PIN registration.',
+        solution: 'Register phone number two-step verification PIN via Meta WhatsApp Manager.',
       },
       {
         code: 80007,
@@ -2076,9 +2281,59 @@ function createWhatsAppRouter({ getDb, saveDb, authenticateAdmin }) {
       },
     ];
 
+    // Safely extract historical HTTP 400 and 404 errors preserving Meta error codes without exposing credentials
+    const apiLogs = Array.isArray(db?.whatsappApiLogs) ? db.whatsappApiLogs : [];
+    const deliveryLogs = Array.isArray(db?.whatsappDeliveryLogs) ? db.whatsappDeliveryLogs : [];
+    const historicalErrors = [];
+    const seenErrors = new Set();
+
+    for (const log of apiLogs) {
+      if (!log.success && (log.responseStatus >= 400 || log.metaErrorCode)) {
+        const key = `${log.responseStatus}-${log.metaErrorCode || ''}-${log.endpoint}`;
+        if (!seenErrors.has(key)) {
+          seenErrors.add(key);
+          historicalErrors.push({
+            source: 'API_LOG',
+            endpoint: log.endpoint,
+            method: log.method,
+            httpStatus: log.responseStatus,
+            metaErrorCode: log.metaErrorCode || log.responseBody?.error?.code || null,
+            metaErrorSubcode: log.metaErrorSubcode || log.responseBody?.error?.error_subcode || null,
+            metaErrorType: log.metaErrorType || log.responseBody?.error?.type || null,
+            metaErrorMessage: log.errorMessage || log.responseBody?.error?.message || null,
+            metaErrorDetails: log.metaErrorDetails || log.responseBody?.error?.error_data?.details || null,
+            fbtraceId: log.fbtraceId || log.responseBody?.error?.fbtrace_id || null,
+            timestamp: log.timestamp,
+          });
+        }
+      }
+    }
+
+    for (const dlv of deliveryLogs) {
+      if (!dlv.success && (dlv.httpStatus >= 400 || dlv.metaErrorCode)) {
+        const key = `DLV-${dlv.httpStatus}-${dlv.metaErrorCode || ''}-${dlv.operationType}`;
+        if (!seenErrors.has(key)) {
+          seenErrors.add(key);
+          historicalErrors.push({
+            source: 'DELIVERY_LOG',
+            operationType: dlv.operationType,
+            httpStatus: dlv.httpStatus,
+            metaErrorCode: dlv.metaErrorCode,
+            metaErrorSubcode: dlv.metaErrorSubcode || null,
+            metaErrorType: dlv.metaErrorType || null,
+            metaErrorMessage: dlv.metaErrorMessage,
+            metaErrorDetails: dlv.metaErrorDetails || null,
+            fbtraceId: dlv.fbtraceId || null,
+            timestamp: dlv.timestamp,
+          });
+        }
+      }
+    }
+
     res.json({
       success: true,
       data: errorDictionary,
+      historicalErrors,
     });
   });
 

@@ -866,6 +866,559 @@ async function runAllTests() {
     }
   });
 
+  // -------------------------------------------------------------
+  // TEST 27: Webhook processing for template status and phone quality updates
+  // -------------------------------------------------------------
+  await runTest('27. Webhook handles message_template_status_update and phone_number_quality_update', async () => {
+    const testDb = {
+      whatsappConfig: { qualityRating: 'UNKNOWN', messagingLimitTier: 'TIER_50' },
+      whatsappTemplates: [{ id: 'tmpl_101', name: 'welcome_lead', status: 'PENDING' }],
+      whatsappWebhookLogs: [],
+    };
+
+    // 1. Send template approval event
+    const templateReq = {
+      headers: {},
+      body: {
+        object: 'whatsapp_business_account',
+        entry: [
+          {
+            id: 'WABA_01',
+            changes: [
+              {
+                field: 'message_template_status_update',
+                value: {
+                  event: 'APPROVED',
+                  message_template_id: 'tmpl_101',
+                  message_template_name: 'welcome_lead',
+                },
+              },
+            ],
+          },
+        ],
+      },
+    };
+    const mockRes = {
+      status: () => ({ json: () => {} }),
+    };
+
+    await whatsappWebhook.handleIncomingEvent(templateReq, mockRes, { db: testDb, saveDb: () => true, config: {} });
+    assert.strictEqual(testDb.whatsappTemplates[0].status, 'APPROVED');
+    assert.strictEqual(testDb.whatsappWebhookLogs.length, 1);
+
+    // 2. Send phone quality update event
+    const phoneReq = {
+      headers: {},
+      body: {
+        object: 'whatsapp_business_account',
+        entry: [
+          {
+            id: 'WABA_01',
+            changes: [
+              {
+                field: 'phone_number_quality_update',
+                value: {
+                  event: 'GREEN',
+                  current_limit: 'TIER_1K',
+                  display_phone_number: '+91 7233882089',
+                },
+              },
+            ],
+          },
+        ],
+      },
+    };
+    await whatsappWebhook.handleIncomingEvent(phoneReq, mockRes, { db: testDb, saveDb: () => true, config: {} });
+    assert.strictEqual(testDb.whatsappConfig.qualityRating, 'GREEN');
+    assert.strictEqual(testDb.whatsappConfig.messagingLimitTier, 'TIER_1K');
+    assert.strictEqual(testDb.whatsappWebhookLogs.length, 2);
+  });
+
+  // -------------------------------------------------------------
+  // TEST 28: Full Meta Account Synchronization and Tenant Asset Reconciliation
+  // -------------------------------------------------------------
+  await runTest('28. Meta Sync reconciles assets, tenants, template list, and separate statuses', async () => {
+    const originalCall = whatsappClient.callGraphApi;
+    const testWabaId = '1634913171692711';
+    const testPhoneId = '1424075454112547';
+
+    // Mock the 4 Meta Graph API endpoints from the audit log
+    whatsappClient.callGraphApi = async ({ endpoint }) => {
+      if (endpoint.includes(testPhoneId)) {
+        return {
+          success: true,
+          status: 200,
+          data: {
+            id: testPhoneId,
+            verified_name: 'Astitva Innovation',
+            code_verification_status: 'VERIFIED',
+            display_phone_number: '+91 7233882089',
+            quality_rating: 'GREEN',
+            platform_type: 'CLOUD_API',
+            throughput: { level: 'STANDARD' },
+            name_status: 'APPROVED',
+          },
+        };
+      }
+      if (endpoint === `/${testWabaId}?fields=id,name,currency,timezone_id,message_template_namespace,account_review_status`) {
+        return {
+          success: true,
+          status: 200,
+          data: {
+            id: testWabaId,
+            name: 'Astitva Innovation Account',
+            currency: 'INR',
+            timezone_id: '1',
+            message_template_namespace: 'astitva_innovation_ns',
+            account_review_status: 'APPROVED',
+          },
+        };
+      }
+      if (endpoint === `/${testWabaId}/phone_numbers`) {
+        return {
+          success: true,
+          status: 200,
+          data: {
+            data: [
+              { id: testPhoneId, display_phone_number: '+91 7233882089' },
+            ],
+          },
+        };
+      }
+      if (endpoint.includes('message_templates')) {
+        return {
+          success: true,
+          status: 200,
+          data: {
+            data: [
+              { id: 't1', name: 'welcome_service', status: 'APPROVED', category: 'UTILITY', language: 'en_US' },
+              { id: 't2', name: 'appointment_update', status: 'PENDING', category: 'UTILITY', language: 'en_US' },
+            ],
+          },
+        };
+      }
+      return { success: false, status: 404, error: 'Endpoint not found' };
+    };
+
+    const express = require('express');
+    const app = express();
+    app.use(express.json());
+
+    const testDb = {
+      whatsappConfig: {
+        token: 'EAAB_test_sync_token',
+        phoneNumberId: testPhoneId,
+        wabaId: testWabaId,
+        status: 'Disconnected',
+      },
+      whatsappTenants: [
+        {
+          id: 'default',
+          name: 'Primary Tenant',
+          wabaId: 'OLD_WABA',
+          phoneNumberId: 'OLD_PHONE',
+          status: 'Pending',
+          isDefault: true,
+        },
+      ],
+      whatsappTemplates: [],
+      whatsappMessages: [],
+      whatsappApiLogs: [],
+      whatsappDeliveryLogs: [],
+    };
+
+    const router = createWhatsAppRouter({
+      getDb: () => testDb,
+      saveDb: () => true,
+      authenticateAdmin: (req, res, next) => {
+        req.admin = { username: 'AST-ADMIN-01', role: 'admin' };
+        next();
+      },
+    });
+    app.use('/', router);
+
+    const server = app.listen(0);
+    const { port } = server.address();
+    const baseUrl = `http://127.0.0.1:${port}`;
+
+    try {
+      const syncRes = await fetch(`${baseUrl}/sync`, { method: 'POST' });
+      assert.strictEqual(syncRes.status, 200);
+      const resBody = await syncRes.json();
+      assert.strictEqual(resBody.success, true);
+
+      // Verify separate statuses
+      assert.strictEqual(testDb.whatsappConfig.apiConnectivity, 'CONNECTED');
+      assert.strictEqual(testDb.whatsappConfig.phoneRegistrationStatus, 'REGISTERED_AND_VERIFIED');
+      assert.strictEqual(testDb.whatsappConfig.accountReviewStatus, 'APPROVED');
+      assert.strictEqual(testDb.whatsappConfig.templateApprovalStatus, 'TEMPLATES_APPROVED');
+      assert.strictEqual(testDb.whatsappConfig.status, 'Connected');
+      assert.strictEqual(testDb.whatsappConfig.approvedTemplatesCount, 1);
+      assert.strictEqual(testDb.whatsappConfig.totalTemplatesCount, 2);
+
+      // Verify tenant auto-reconciliation
+      const defaultTenant = testDb.whatsappTenants.find((t) => t.id === 'default');
+      assert.strictEqual(defaultTenant.wabaId, testWabaId);
+      assert.strictEqual(defaultTenant.phoneNumberId, testPhoneId);
+      assert.strictEqual(defaultTenant.status, 'Active');
+
+      // Verify checklist reflection
+      const checklist = checklistEngine.evaluateChecklist(testDb, testDb.whatsappConfig);
+      const wabaCheck = checklist.find((c) => c.id === 'chk-waba-connected');
+      const phoneCheck = checklist.find((c) => c.id === 'chk-phone-registered');
+      const managementCheck = checklist.find((c) => c.id === 'chk-perm-management');
+
+      assert.strictEqual(wabaCheck.verified, true, 'WABA connection should be verified');
+      assert.strictEqual(phoneCheck.verified, true, 'Phone registration should be verified');
+      assert.strictEqual(managementCheck.verified, true, 'Management permission should be verified with approved template');
+    } finally {
+      whatsappClient.callGraphApi = originalCall;
+      await new Promise((resolve, reject) => server.close((err) => err ? reject(err) : resolve()));
+    }
+  });
+
+  // -------------------------------------------------------------
+  // TEST 29: Missing Permissions Handling
+  // -------------------------------------------------------------
+  await runTest('29. Missing permissions returns error, logs Meta code, and flags checklist', async () => {
+    const originalCall = whatsappClient.callGraphApi;
+
+    whatsappClient.callGraphApi = async () => {
+      return {
+        success: false,
+        status: 403,
+        error: 'Permissions error: Missing whatsapp_business_management scope',
+        errorCode: 200,
+        errorSubcode: null,
+        data: {
+          error: {
+            message: 'Permissions error: Missing whatsapp_business_management scope',
+            type: 'OAuthException',
+            code: 200,
+            fbtrace_id: 'FB_TRACE_PERM_ERR',
+          },
+        },
+      };
+    };
+
+    const express = require('express');
+    const app = express();
+    app.use(express.json());
+
+    const testDb = {
+      whatsappConfig: {
+        token: 'EAAB_token',
+        phoneNumberId: '1424075454112547',
+        wabaId: '1634913171692711',
+      },
+      whatsappApiLogs: [],
+      whatsappDeliveryLogs: [],
+    };
+
+    const router = createWhatsAppRouter({
+      getDb: () => testDb,
+      saveDb: () => true,
+      authenticateAdmin: (req, res, next) => {
+        req.admin = { username: 'AST-ADMIN-01' };
+        next();
+      },
+    });
+    app.use('/', router);
+
+    const server = app.listen(0);
+    const { port } = server.address();
+    const baseUrl = `http://127.0.0.1:${port}`;
+
+    try {
+      const syncRes = await fetch(`${baseUrl}/sync`, { method: 'POST' });
+      assert.strictEqual(syncRes.status, 403);
+      const resBody = await syncRes.json();
+      assert.strictEqual(resBody.success, false);
+      assert.strictEqual(resBody.metaErrorCode, 200);
+
+      // Verify status marked as Error and apiConnectivity as ERROR
+      assert.strictEqual(testDb.whatsappConfig.status, 'Error');
+      assert.strictEqual(testDb.whatsappConfig.apiConnectivity, 'ERROR');
+
+      // Verify checklist items do not pass
+      const checklist = checklistEngine.evaluateChecklist(testDb, testDb.whatsappConfig);
+      const wabaItem = checklist.find((c) => c.id === 'chk-waba-connected');
+      assert.strictEqual(wabaItem.verified, false);
+    } finally {
+      whatsappClient.callGraphApi = originalCall;
+      await new Promise((resolve, reject) => server.close((err) => err ? reject(err) : resolve()));
+    }
+  });
+
+  // -------------------------------------------------------------
+  // TEST 30: Incorrect WABA or Phone Number ID Handling
+  // -------------------------------------------------------------
+  await runTest('30. Incorrect WABA/Phone ID or ownership mismatch returns 409 and preserves safe diagnostics', async () => {
+    const originalCall = whatsappClient.callGraphApi;
+
+    // Simulate phone number not belonging to the WABA
+    whatsappClient.callGraphApi = async ({ endpoint }) => {
+      if (endpoint.includes('1424075454112547')) {
+        return {
+          success: true,
+          status: 200,
+          data: {
+            id: '1424075454112547',
+            code_verification_status: 'VERIFIED',
+            name_status: 'APPROVED',
+          },
+        };
+      }
+      if (endpoint.includes('phone_numbers')) {
+        return {
+          success: true,
+          status: 200,
+          data: {
+            data: [
+              { id: 'DIFFERENT_PHONE_ID', display_phone_number: '+91 9999999999' },
+            ],
+          },
+        };
+      }
+      return {
+        success: true,
+        status: 200,
+        data: { id: '1634913171692711', name: 'My WABA' },
+      };
+    };
+
+    const express = require('express');
+    const app = express();
+    app.use(express.json());
+
+    const testDb = {
+      whatsappConfig: {
+        token: 'EAAB_token',
+        phoneNumberId: '1424075454112547',
+        wabaId: '1634913171692711',
+      },
+      whatsappApiLogs: [],
+      whatsappDeliveryLogs: [],
+    };
+
+    const router = createWhatsAppRouter({
+      getDb: () => testDb,
+      saveDb: () => true,
+      authenticateAdmin: (req, res, next) => {
+        req.admin = { username: 'AST-ADMIN-01' };
+        next();
+      },
+    });
+    app.use('/', router);
+
+    const server = app.listen(0);
+    const { port } = server.address();
+    const baseUrl = `http://127.0.0.1:${port}`;
+
+    try {
+      const syncRes = await fetch(`${baseUrl}/sync`, { method: 'POST' });
+      assert.strictEqual(syncRes.status, 409);
+      const resBody = await syncRes.json();
+      assert.strictEqual(resBody.success, false);
+      assert.ok(resBody.error.includes('does not belong to WABA'));
+
+      // Connection status must remain Pending
+      assert.strictEqual(testDb.whatsappConfig.status, 'Pending');
+    } finally {
+      whatsappClient.callGraphApi = originalCall;
+      await new Promise((resolve, reject) => server.close((err) => err ? reject(err) : resolve()));
+    }
+  });
+
+  // -------------------------------------------------------------
+  // TEST 31: Unapproved Templates Handling
+  // -------------------------------------------------------------
+  await runTest('31. Unapproved templates sets PENDING_APPROVAL and separates template status from API connectivity', async () => {
+    const originalCall = whatsappClient.callGraphApi;
+
+    whatsappClient.callGraphApi = async ({ endpoint }) => {
+      if (endpoint.includes('message_templates')) {
+        return {
+          success: true,
+          status: 200,
+          data: {
+            data: [
+              { id: 't1', name: 'draft_promo', status: 'PENDING', category: 'MARKETING' },
+              { id: 't2', name: 'rejected_offer', status: 'REJECTED', category: 'MARKETING' },
+            ],
+          },
+        };
+      }
+      if (endpoint.includes('phone_numbers')) {
+        return { success: true, status: 200, data: { data: [{ id: '1424075454112547' }] } };
+      }
+      if (endpoint.includes('1424075454112547')) {
+        return {
+          success: true,
+          status: 200,
+          data: { id: '1424075454112547', code_verification_status: 'VERIFIED', name_status: 'APPROVED' },
+        };
+      }
+      return {
+        success: true,
+        status: 200,
+        data: { id: '1634913171692711', name: 'My WABA', account_review_status: 'APPROVED' },
+      };
+    };
+
+    const express = require('express');
+    const app = express();
+    app.use(express.json());
+
+    const testDb = {
+      whatsappConfig: {
+        token: 'EAAB_token',
+        phoneNumberId: '1424075454112547',
+        wabaId: '1634913171692711',
+      },
+      whatsappTemplates: [],
+      whatsappApiLogs: [],
+      whatsappDeliveryLogs: [],
+    };
+
+    const router = createWhatsAppRouter({
+      getDb: () => testDb,
+      saveDb: () => true,
+      authenticateAdmin: (req, res, next) => {
+        req.admin = { username: 'AST-ADMIN-01' };
+        next();
+      },
+    });
+    app.use('/', router);
+
+    const server = app.listen(0);
+    const { port } = server.address();
+    const baseUrl = `http://127.0.0.1:${port}`;
+
+    try {
+      const syncRes = await fetch(`${baseUrl}/sync`, { method: 'POST' });
+      assert.strictEqual(syncRes.status, 200);
+
+      // Verify separate status: API is connected, but templates are PENDING_APPROVAL
+      assert.strictEqual(testDb.whatsappConfig.apiConnectivity, 'CONNECTED');
+      assert.strictEqual(testDb.whatsappConfig.templateApprovalStatus, 'PENDING_APPROVAL');
+      assert.strictEqual(testDb.whatsappConfig.approvedTemplatesCount, 0);
+      assert.strictEqual(testDb.whatsappConfig.totalTemplatesCount, 2);
+
+      // In checklist: management permission must report unapproved templates
+      const checklist = checklistEngine.evaluateChecklist(testDb, testDb.whatsappConfig);
+      const mgmtCheck = checklist.find((c) => c.id === 'chk-perm-management');
+      assert.strictEqual(mgmtCheck.verified, false, 'Management permission should be pending when no approved templates exist');
+      assert.ok(mgmtCheck.detail.includes('0 of 2 message template(s) are approved'));
+    } finally {
+      whatsappClient.callGraphApi = originalCall;
+      await new Promise((resolve, reject) => server.close((err) => err ? reject(err) : resolve()));
+    }
+  });
+
+  // -------------------------------------------------------------
+  // TEST 32: Failed API Calls and Network Timeouts
+  // -------------------------------------------------------------
+  await runTest('32. Failed API calls and network timeouts log error details and do not falsely verify', async () => {
+    const originalCall = whatsappClient.callGraphApi;
+
+    whatsappClient.callGraphApi = async () => {
+      return {
+        success: false,
+        status: 500,
+        error: 'Meta Graph API request timed out (15s)',
+        data: { error: { message: 'Meta Graph API request timed out (15s)', type: 'NetworkError' } },
+      };
+    };
+
+    const express = require('express');
+    const app = express();
+    app.use(express.json());
+
+    const testDb = {
+      whatsappConfig: {
+        token: 'EAAB_token',
+        phoneNumberId: '1424075454112547',
+        wabaId: '1634913171692711',
+      },
+      whatsappApiLogs: [],
+      whatsappDeliveryLogs: [],
+    };
+
+    const router = createWhatsAppRouter({
+      getDb: () => testDb,
+      saveDb: () => true,
+      authenticateAdmin: (req, res, next) => {
+        req.admin = { username: 'AST-ADMIN-01' };
+        next();
+      },
+    });
+    app.use('/', router);
+
+    const server = app.listen(0);
+    const { port } = server.address();
+    const baseUrl = `http://127.0.0.1:${port}`;
+
+    try {
+      const syncRes = await fetch(`${baseUrl}/sync`, { method: 'POST' });
+      assert.strictEqual(syncRes.status, 500);
+
+      assert.strictEqual(testDb.whatsappConfig.status, 'Error');
+      assert.strictEqual(testDb.whatsappConfig.apiConnectivity, 'ERROR');
+
+      const checklist = checklistEngine.evaluateChecklist(testDb, testDb.whatsappConfig);
+      assert.strictEqual(checklist.find((c) => c.id === 'chk-waba-connected').verified, false);
+      assert.strictEqual(checklist.find((c) => c.id === 'chk-api-calls-tested').verified, false);
+    } finally {
+      whatsappClient.callGraphApi = originalCall;
+      await new Promise((resolve, reject) => server.close((err) => err ? reject(err) : resolve()));
+    }
+  });
+
+  // -------------------------------------------------------------
+  // TEST 33: Phone Registration Field Verification
+  // -------------------------------------------------------------
+  await runTest('33. Phone registration requires code_verification_status VERIFIED; does not infer from HTTP 200 alone', async () => {
+    // Scenario A: Phone node returns HTTP 200 but code_verification_status is NOT_VERIFIED
+    const dbUnverified = {
+      whatsappConfig: {
+        status: 'Pending',
+        apiConnectivity: 'CONNECTED',
+        wabaId: '1634913171692711',
+        phoneNumberId: '1424075454112547',
+        codeVerificationStatus: 'NOT_VERIFIED',
+        qualityRating: 'GREEN',
+        nameStatus: 'APPROVED',
+        lastSync: new Date().toISOString(),
+      },
+      whatsappApiLogs: [{ id: '1', success: true }],
+    };
+
+    const checklistA = checklistEngine.evaluateChecklist(dbUnverified, dbUnverified.whatsappConfig);
+    const phoneItemA = checklistA.find((c) => c.id === 'chk-phone-registered');
+    assert.strictEqual(phoneItemA.verified, false, 'Phone must NOT be verified when code_verification_status is NOT_VERIFIED');
+    assert.ok(phoneItemA.detail.includes('two-step verification code status is NOT_VERIFIED'));
+
+    // Scenario B: Phone node has code_verification_status VERIFIED and approved name
+    const dbVerified = {
+      whatsappConfig: {
+        status: 'Connected',
+        apiConnectivity: 'CONNECTED',
+        wabaId: '1634913171692711',
+        phoneNumberId: '1424075454112547',
+        codeVerificationStatus: 'VERIFIED',
+        qualityRating: 'GREEN',
+        nameStatus: 'APPROVED',
+        lastSync: new Date().toISOString(),
+      },
+      whatsappApiLogs: [{ id: '1', success: true }],
+    };
+
+    const checklistB = checklistEngine.evaluateChecklist(dbVerified, dbVerified.whatsappConfig);
+    const phoneItemB = checklistB.find((c) => c.id === 'chk-phone-registered');
+    assert.strictEqual(phoneItemB.verified, true, 'Phone must be verified when code_verification_status is VERIFIED and name is APPROVED');
+  });
+
   console.log('\n----------------------------------------------------------------------');
   console.log(`TEST SUMMARY: ${passedTests}/${totalTests} TESTS PASSED (100% SUCCESS RATE)`);
   console.log('======================================================================\n');
