@@ -982,6 +982,7 @@ function createWhatsAppRouter({ getDb, saveDb, authenticateAdmin }) {
 
     // Consent check
     const contact = (db.whatsappContacts || []).find((c) => c.phone === cleanTo);
+    const convo = (db.whatsappConversations || []).find((c) => c.id === cleanTo);
     if (contact && contact.consentStatus === 'OPTED_OUT') {
       return res.status(403).json({
         success: false,
@@ -1092,6 +1093,162 @@ function createWhatsAppRouter({ getDb, saveDb, authenticateAdmin }) {
       return res.status(result.status || 400).json({
         success: false,
         error: result.error || 'Failed to dispatch WhatsApp template message.',
+        metaError: result.data?.error,
+      });
+    }
+  });
+
+  router.post('/messages/send-media', authenticateAdmin, async (req, res) => {
+    const { to, mediaType = 'image', mediaUrl, mediaId, caption = '', filename = '' } = req.body || {};
+
+    if (!to || (!mediaUrl && !mediaId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Recipient phone number and either a media URL or Meta media ID are required.',
+      });
+    }
+
+    const cleanTo = String(to).replace(/\D/g, '');
+    if (cleanTo.length < 10 || cleanTo.length > 15) {
+      return res.status(400).json({
+        success: false,
+        error: 'Recipient phone number must contain 10 to 15 digits including country code.',
+      });
+    }
+
+    const validMediaTypes = ['image', 'document', 'audio', 'video'];
+    const resolvedType = validMediaTypes.includes(mediaType) ? mediaType : 'image';
+
+    const db = getDb();
+    const config = whatsappClient.resolveConfig(db);
+
+    // 1. Consent check
+    const contact = (db.whatsappContacts || []).find((c) => c.phone === cleanTo);
+    if (contact && contact.consentStatus === 'OPTED_OUT') {
+      return res.status(403).json({
+        success: false,
+        optedOut: true,
+        error: `Consent Restriction: Recipient ${cleanTo} has opted out. Outbound media suppressed.`,
+      });
+    }
+
+    // 2. Customer service 24h window enforcement
+    const convo = (db.whatsappConversations || []).find((c) => c.id === cleanTo);
+    const lastInbound = convo?.lastInboundTimestamp ? new Date(convo.lastInboundTimestamp).getTime() : 0;
+    const isWindowOpen = lastInbound > 0 && Date.now() - lastInbound < 24 * 60 * 60 * 1000;
+
+    if (!isWindowOpen) {
+      return res.status(400).json({
+        success: false,
+        windowExpired: true,
+        error: 'Meta Policy Restriction: Outbound media messages require an active 24-hour customer service window. Outside the window, send an approved template.',
+      });
+    }
+
+    const startTime = Date.now();
+    const correlationId = `COR-MEDIA-${Date.now()}-${crypto.randomBytes(2).toString('hex')}`;
+    const result = await whatsappClient.sendMediaMessage(
+      config,
+      { to: cleanTo, mediaType: resolvedType, mediaUrl, mediaId, caption, filename },
+      db,
+      saveDb
+    );
+    const durationMs = Date.now() - startTime;
+
+    if (result.success && result.data?.messages?.[0]?.id) {
+      const metaMsgId = result.data.messages[0].id;
+      const timestamp = new Date().toISOString();
+      const resolvedTenantId = req.body?.tenantId || convo?.tenantId || contact?.tenantId || db.activeWhatsAppTenantId || 'default';
+
+      if (!Array.isArray(db.whatsappMessages)) db.whatsappMessages = [];
+      db.whatsappMessages.push({
+        id: metaMsgId,
+        conversationId: cleanTo,
+        direction: 'outbound',
+        type: resolvedType,
+        text: caption ? `[${resolvedType.toUpperCase()}] ${caption}` : `[${resolvedType.toUpperCase()}]`,
+        mediaUrl: mediaUrl || null,
+        mediaId: mediaId || null,
+        caption: caption || null,
+        filename: filename || null,
+        status: 'sent',
+        timestamp,
+        statusTimestamp: timestamp,
+        sender: req.admin?.username || 'AST-ADMIN-01',
+        rawPayload: result.data,
+        tenantId: resolvedTenantId,
+      });
+
+      // Update conversation
+      if (!Array.isArray(db.whatsappConversations)) db.whatsappConversations = [];
+      let c = db.whatsappConversations.find((item) => item.id === cleanTo);
+      if (!c) {
+        c = {
+          id: cleanTo,
+          contactName: contact?.name || cleanTo,
+          phone: cleanTo,
+          lastMessage: `[${resolvedType.toUpperCase()}] ${caption || filename || ''}`.trim(),
+          lastMessageTimestamp: timestamp,
+          lastInboundTimestamp: null,
+          unreadCount: 0,
+          status: 'active',
+          createdAt: timestamp,
+          tenantId: resolvedTenantId,
+        };
+        db.whatsappConversations.unshift(c);
+      } else {
+        c.lastMessage = `[${resolvedType.toUpperCase()}] ${caption || filename || ''}`.trim();
+        c.lastMessageTimestamp = timestamp;
+        if (!c.tenantId) c.tenantId = resolvedTenantId;
+      }
+
+      whatsappClient.recordDeliveryLog(db, saveDb, {
+        correlationId,
+        messageId: metaMsgId,
+        to: cleanTo,
+        operationType: `MEDIA_${resolvedType.toUpperCase()}_SEND`,
+        httpStatus: 200,
+        metaErrorCode: null,
+        metaErrorMessage: null,
+        retryCount: 0,
+        durationMs,
+        success: true,
+        tenantId: resolvedTenantId,
+      });
+
+      if (!saveDb(db)) {
+        return res.status(503).json({ success: false, error: 'Media message dispatched to Meta, but failed to save record.' });
+      }
+
+      logAudit(req.admin?.username, 'MEDIA_MESSAGE_SENT', {
+        to: cleanTo,
+        mediaType: resolvedType,
+        messageId: metaMsgId,
+      });
+
+      return res.json({
+        success: true,
+        messageId: metaMsgId,
+        status: 'sent',
+        data: result.data,
+      });
+    } else {
+      whatsappClient.recordDeliveryLog(db, saveDb, {
+        correlationId,
+        messageId: null,
+        to: cleanTo,
+        operationType: `MEDIA_${resolvedType.toUpperCase()}_SEND`,
+        httpStatus: result.status || 400,
+        metaErrorCode: result.data?.error?.code,
+        metaErrorMessage: result.error,
+        retryCount: 0,
+        durationMs,
+        success: false,
+      });
+
+      return res.status(result.status || 400).json({
+        success: false,
+        error: result.error || 'Failed to dispatch WhatsApp media message.',
         metaError: result.data?.error,
       });
     }

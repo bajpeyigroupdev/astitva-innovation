@@ -66,6 +66,9 @@ import { whatsappService } from "../services/whatsappService";
 import { getErrorMessage } from "../lib/errors";
 import type { WhatsAppOperationResult } from "../services/whatsappService";
 import { normalizeWhatsAppTab } from "../constants/whatsappTabs";
+import { WhatsAppMessageComposer } from "../components/WhatsAppMessageComposer";
+import { AddContactModal, EditContactModal, DeleteContactDialog } from "../components/WhatsAppContactModals";
+import { normalizePhoneNumber } from "../lib/phoneUtils";
 import {
   WhatsAppConfig,
   WhatsAppConversation,
@@ -164,15 +167,22 @@ export const WhatsAppPage: React.FC = () => {
   const [newTemplateBody, setNewTemplateBody] = useState<string>("");
   const [newTemplateFooter, setNewTemplateFooter] = useState<string>("Astitva Innovation");
 
-  // Contact Modal State
+  // Manual Message Composer State
+  const [isComposerOpen, setIsComposerOpen] = useState<boolean>(false);
+  const [composerInitialContactId, setComposerInitialContactId] = useState<string | undefined>(undefined);
+  const [composerInitialPhone, setComposerInitialPhone] = useState<string | undefined>(undefined);
+
+  // Contact Modal States
   const [isContactModalOpen, setIsContactModalOpen] = useState<boolean>(false);
-  const [contactPhone, setContactPhone] = useState<string>("");
-  const [contactName, setContactName] = useState<string>("");
-  const [contactConsentStatus, setContactConsentStatus] = useState<string>("OPTED_IN");
-  const [contactConsentSource, setContactConsentSource] = useState<string>("DIRECT_INBOUND_WHATSAPP");
-  const [contactNotes, setContactNotes] = useState<string>("");
+  const [editingContact, setEditingContact] = useState<WhatsAppContact | null>(null);
+  const [isEditContactOpen, setIsEditContactOpen] = useState<boolean>(false);
+  const [deletingContact, setDeletingContact] = useState<WhatsAppContact | null>(null);
+  const [isDeleteContactOpen, setIsDeleteContactOpen] = useState<boolean>(false);
   const [contactSearch, setContactSearch] = useState<string>("");
   const [contactFilter, setContactFilter] = useState<string>("ALL");
+
+  // Message Retry State
+  const [retryingMsgId, setRetryingMsgId] = useState<string | null>(null);
 
   // Delivery Logs Filter State
   const [deliveryOpFilter, setDeliveryOpFilter] = useState<string>("ALL");
@@ -812,35 +822,37 @@ export const WhatsAppPage: React.FC = () => {
     }
   };
 
-  // Add Contact
-  const handleCreateContact = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!contactPhone.trim()) return;
+  // Manual Message Composer Actions
+  const handleOpenComposer = (contactId?: string, phone?: string) => {
+    setComposerInitialContactId(contactId);
+    setComposerInitialPhone(phone);
+    setIsComposerOpen(true);
+  };
 
+  const handleMessageSentFromComposer = async (_result: WhatsAppOperationResult, recipientPhone: string) => {
     try {
-      await whatsappService.createContact({
-        phone: contactPhone.trim(),
-        name: contactName.trim(),
-        consentStatus: contactConsentStatus,
-        consentSource: contactConsentSource,
-        notes: contactNotes.trim(),
-      });
-      toast({
-        title: "Contact Saved",
-        description: `Consent recorded for ${contactPhone}.`,
-      });
-      setIsContactModalOpen(false);
-      setContactPhone("");
-      setContactName("");
-      setContactNotes("");
+      const [convos, msgs, dlv] = await Promise.all([
+        whatsappService.getConversations(),
+        whatsappService.getMessages({ conversationId: recipientPhone }),
+        whatsappService.getDeliveryLogs({ limit: 100 }),
+      ]);
+      setConversations(convos);
+      setSelectedConvoId(recipientPhone);
+      setMessages(msgs.data);
+      setDeliveryLogs(dlv.data);
+      handleTabChange("chats");
+    } catch (e) {
+      console.warn("Failed to refresh state after composer dispatch:", e);
+    }
+  };
+
+  // Contact Ledger Refresh Callback
+  const handleContactActionSuccess = async () => {
+    try {
       const res = await whatsappService.getContacts();
       setContacts(res.data);
-    } catch (err) {
-      toast({
-        variant: "destructive",
-        title: "Failed to Add Contact",
-        description: getErrorMessage(err, "Could not create contact."),
-      });
+    } catch (e) {
+      console.warn("Failed to refresh contacts ledger:", e);
     }
   };
 
@@ -861,16 +873,29 @@ export const WhatsAppPage: React.FC = () => {
     }
   };
 
-  // Delete Contact
-  const handleDeleteContact = async (id: string) => {
-    if (!confirm("Are you sure you want to remove this contact and consent record?")) return;
+  // Retry Failed Outbound Message
+  const handleRetryMessage = async (m: WhatsAppMessage) => {
+    setRetryingMsgId(m.id);
     try {
-      await whatsappService.deleteContact(id);
-      toast({ title: "Contact Removed", description: "Record removed from database." });
-      const res = await whatsappService.getContacts();
-      setContacts(res.data);
+      const res = await whatsappService.retryMessage(m.id);
+      toast({
+        title: "Message Retried",
+        description: res.message || "Message re-dispatched to Meta successfully.",
+      });
+      if (selectedConvoId) {
+        const msgs = await whatsappService.getMessages({ conversationId: selectedConvoId });
+        setMessages(msgs.data);
+      }
+      const dlv = await whatsappService.getDeliveryLogs({ limit: 100 });
+      setDeliveryLogs(dlv.data);
     } catch (err) {
-      toast({ variant: "destructive", title: "Failed to Delete", description: getErrorMessage(err, "Could not delete contact.") });
+      toast({
+        variant: "destructive",
+        title: "Retry Failed",
+        description: getErrorMessage(err, "Failed to retry message."),
+      });
+    } finally {
+      setRetryingMsgId(null);
     }
   };
 
@@ -1845,9 +1870,18 @@ export const WhatsAppPage: React.FC = () => {
               <div className="p-3 border-b border-border/60 space-y-2 shrink-0">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Conversations</h3>
-                  <Badge variant="outline" className="text-[10px] font-mono">
-                    {conversations.length} Active
-                  </Badge>
+                  <div className="flex items-center gap-1.5">
+                    <Badge variant="outline" className="text-[10px] font-mono">
+                      {conversations.length} Active
+                    </Badge>
+                    <Button
+                      size="sm"
+                      onClick={() => handleOpenComposer()}
+                      className="text-[10px] h-6 px-2 bg-primary text-white font-semibold"
+                    >
+                      <Plus className="w-3 h-3 mr-1" /> New Message
+                    </Button>
+                  </div>
                 </div>
                 <div className="relative">
                   <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
@@ -1930,6 +1964,14 @@ export const WhatsAppPage: React.FC = () => {
                   <Button
                     variant="outline"
                     size="sm"
+                    onClick={() => handleOpenComposer(undefined, selectedConvoId)}
+                    className="text-xs h-8 border-primary/40 text-primary hover:bg-primary hover:text-white"
+                  >
+                    <Send className="w-3.5 h-3.5 mr-1" /> Compose
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() => {
                       setTemplateRecipient(selectedConvoId);
                       setIsTemplateModalOpen(true);
@@ -1965,8 +2007,22 @@ export const WhatsAppPage: React.FC = () => {
                         >
                           <p className="whitespace-pre-wrap leading-relaxed">{m.text}</p>
                           {m.errorMessage && (
-                            <div className="mt-1.5 p-1.5 rounded bg-destructive/20 border border-destructive/40 text-[10px] text-destructive-foreground">
-                              Error: {m.errorMessage} (Code {m.errorCode})
+                            <div className="mt-1.5 p-1.5 rounded bg-destructive/20 border border-destructive/40 text-[10px] text-destructive-foreground flex items-center justify-between gap-2">
+                              <div>
+                                <span className="font-semibold">Error:</span> {m.errorMessage} {m.errorCode ? `(Code ${m.errorCode})` : ""}
+                              </div>
+                              {isOutbound && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={retryingMsgId === m.id}
+                                  onClick={() => handleRetryMessage(m)}
+                                  className="h-5 px-2 text-[9px] bg-background/80 hover:bg-background border-destructive/40 text-foreground shrink-0"
+                                >
+                                  <RefreshCw className={`w-2.5 h-2.5 mr-1 ${retryingMsgId === m.id ? "animate-spin" : ""}`} />
+                                  Retry
+                                </Button>
+                              )}
                             </div>
                           )}
                         </div>
@@ -2201,19 +2257,43 @@ export const WhatsAppPage: React.FC = () => {
                         <td className="p-3.5 text-muted-foreground text-[11px]">
                           {new Date(c.consentTimestamp).toLocaleDateString()}
                         </td>
-                        <td className="p-3.5 text-right space-x-1.5">
+                        <td className="p-3.5 text-right space-x-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleOpenComposer(c.id)}
+                            className="text-[10px] h-7 px-2 border-primary/40 text-primary hover:bg-primary hover:text-white"
+                          >
+                            <MessageSquare className="w-3 h-3 mr-1" /> Message
+                          </Button>
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => handleToggleOptOut(c)}
                             className="text-[10px] h-7 px-2"
                           >
-                            {c.consentStatus === "OPTED_OUT" ? "Restore Opt-in" : "Suppress / Opt-Out"}
+                            {c.consentStatus === "OPTED_OUT" ? "Restore" : "Suppress"}
                           </Button>
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleDeleteContact(c.id)}
+                            aria-label="Edit Contact"
+                            onClick={() => {
+                              setEditingContact(c);
+                              setIsEditContactOpen(true);
+                            }}
+                            className="text-muted-foreground hover:text-foreground h-7 w-7 p-0"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            aria-label="Delete Contact"
+                            onClick={() => {
+                              setDeletingContact(c);
+                              setIsDeleteContactOpen(true);
+                            }}
                             className="text-destructive h-7 w-7 p-0 hover:bg-destructive/10"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -2985,81 +3065,50 @@ export const WhatsAppPage: React.FC = () => {
         </DialogContent>
       </Dialog>
 
+      {/* WhatsApp Manual Message Composer */}
+      <WhatsAppMessageComposer
+        isOpen={isComposerOpen}
+        onClose={() => setIsComposerOpen(false)}
+        contacts={contacts}
+        templates={templates}
+        conversations={conversations}
+        config={config}
+        tenants={tenants}
+        activeTenantId={activeTenantId}
+        initialContactId={composerInitialContactId}
+        initialPhoneNumber={composerInitialPhone}
+        onMessageSent={handleMessageSentFromComposer}
+      />
+
       {/* Add Contact Modal */}
-      <Dialog open={isContactModalOpen} onOpenChange={setIsContactModalOpen}>
-        <DialogContent className="sm:max-w-md bg-card border-border">
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold flex items-center gap-2">
-              <UserPlus className="w-4 h-4 text-primary" /> Add Contact &amp; Consent Record
-            </DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleCreateContact} className="space-y-4 pt-2">
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold">WhatsApp Number (with country code)</label>
-              <Input
-                value={contactPhone}
-                onChange={(e) => setContactPhone(e.target.value)}
-                placeholder="e.g. 917233882089"
-                className="text-xs font-mono bg-background/60"
-              />
-            </div>
+      <AddContactModal
+        isOpen={isContactModalOpen}
+        onClose={() => setIsContactModalOpen(false)}
+        existingContacts={contacts}
+        onContactCreated={handleContactActionSuccess}
+      />
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold">Contact Name</label>
-              <Input
-                value={contactName}
-                onChange={(e) => setContactName(e.target.value)}
-                placeholder="e.g. Vikram Malhotra"
-                className="text-xs bg-background/60"
-              />
-            </div>
+      {/* Edit Contact Modal */}
+      <EditContactModal
+        contact={editingContact}
+        isOpen={isEditContactOpen}
+        onClose={() => {
+          setIsEditContactOpen(false);
+          setEditingContact(null);
+        }}
+        onContactUpdated={handleContactActionSuccess}
+      />
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold">Consent Status</label>
-                <Select value={contactConsentStatus} onValueChange={setContactConsentStatus}>
-                  <SelectTrigger className="text-xs bg-background/60">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="OPTED_IN">OPTED_IN</SelectItem>
-                    <SelectItem value="PENDING">PENDING</SelectItem>
-                    <SelectItem value="OPTED_OUT">OPTED_OUT</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold">Opt-in Source</label>
-                <Input
-                  value={contactConsentSource}
-                  onChange={(e) => setContactConsentSource(e.target.value)}
-                  className="text-xs bg-background/60"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold">Notes</label>
-              <Input
-                value={contactNotes}
-                onChange={(e) => setContactNotes(e.target.value)}
-                placeholder="Corporate inquiry / architect consultation"
-                className="text-xs bg-background/60"
-              />
-            </div>
-
-            <DialogFooter className="pt-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => setIsContactModalOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" size="sm" className="bg-primary text-white">
-                Save Contact
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {/* Delete Contact Dialog */}
+      <DeleteContactDialog
+        contact={deletingContact}
+        isOpen={isDeleteContactOpen}
+        onClose={() => {
+          setIsDeleteContactOpen(false);
+          setDeletingContact(null);
+        }}
+        onContactDeleted={handleContactActionSuccess}
+      />
 
       {/* Upload Evidence Dialog */}
       <Dialog open={isEvidenceUploadOpen} onOpenChange={setIsEvidenceUploadOpen}>

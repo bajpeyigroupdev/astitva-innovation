@@ -752,7 +752,116 @@ async function runAllTests() {
         body: JSON.stringify({ to: '+919999888877', templateName: 'approved_template', components: {} }),
       });
       assert.strictEqual(malformedTemplate.status, 400);
+
+      // Verify send-media input validation
+      const malformedMedia = await fetch(`${baseUrl}/messages/send-media`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ to: '+919999888877' }), // missing mediaUrl
+      });
+      assert.strictEqual(malformedMedia.status, 400);
     } finally {
+      await new Promise((resolve, reject) => server.close((err) => err ? reject(err) : resolve()));
+    }
+  });
+
+  // -------------------------------------------------------------
+  // TEST 25: Outbound media message formatting & window enforcement
+  // -------------------------------------------------------------
+  await runTest('25. Outbound media message formatting & customer window enforcement', async () => {
+    let capturedCall = null;
+    const originalCall = whatsappClient.callGraphApi;
+    whatsappClient.callGraphApi = async (args) => {
+      capturedCall = args;
+      return { success: true, status: 200, data: { messages: [{ id: 'wamid.MEDIA_TEST_01' }] } };
+    };
+
+    try {
+      const config = { token: 'EAAB_test', phoneNumberId: '109823475' };
+      const res = await whatsappClient.sendMediaMessage(config, {
+        to: '+91 72338 82089',
+        mediaType: 'image',
+        mediaUrl: 'https://astitvainnovation.in/assets/banner.png',
+        caption: 'Astitva Project Blueprint',
+      });
+
+      assert.strictEqual(res.success, true);
+      assert.strictEqual(capturedCall.endpoint, '/109823475/messages');
+      assert.strictEqual(capturedCall.body.messaging_product, 'whatsapp');
+      assert.strictEqual(capturedCall.body.to, '917233882089');
+      assert.strictEqual(capturedCall.body.type, 'image');
+      assert.strictEqual(capturedCall.body.image.link, 'https://astitvainnovation.in/assets/banner.png');
+      assert.strictEqual(capturedCall.body.image.caption, 'Astitva Project Blueprint');
+    } finally {
+      whatsappClient.callGraphApi = originalCall;
+    }
+  });
+
+  // -------------------------------------------------------------
+  // TEST 26: Template dispatch correctly resolves conversation and tenant ID
+  // -------------------------------------------------------------
+  await runTest('26. Template dispatch safely resolves convo and persists record without ReferenceError', async () => {
+    let capturedCall = null;
+    const originalCall = whatsappClient.callGraphApi;
+    whatsappClient.callGraphApi = async (args) => {
+      capturedCall = args;
+      return { success: true, status: 200, data: { messages: [{ id: 'wamid.TMPL_TEST_02' }] } };
+    };
+
+    const express = require('express');
+    const app = express();
+    app.use(express.json());
+
+    const testDb = {
+      whatsappConfig: { token: 'EAAB_test', phoneNumberId: '109823475', wabaId: 'WABA_01' },
+      whatsappContacts: [],
+      whatsappConversations: [],
+      whatsappMessages: [],
+      whatsappDeliveryLogs: [],
+      activeWhatsAppTenantId: 'tenant-client-a',
+    };
+
+    const router = createWhatsAppRouter({
+      getDb: () => testDb,
+      saveDb: () => true,
+      authenticateAdmin: (req, res, next) => {
+        req.admin = { username: 'AST-ADMIN-01', role: 'admin' };
+        next();
+      },
+    });
+    app.use('/', router);
+
+    const server = app.listen(0);
+    const { port } = server.address();
+    const baseUrl = `http://127.0.0.1:${port}`;
+
+    try {
+      const sendRes = await fetch(`${baseUrl}/messages/send-template`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          to: '917233882089',
+          templateName: 'client_consultation_welcome',
+          languageCode: 'en_US',
+          components: [{ type: 'body', parameters: [{ type: 'text', text: 'Vikram' }] }],
+        }),
+      });
+
+      assert.strictEqual(sendRes.status, 200);
+      const data = await sendRes.json();
+      assert.strictEqual(data.success, true);
+      assert.strictEqual(data.messageId, 'wamid.TMPL_TEST_02');
+
+      // Verify conversation record was created with tenantId
+      const savedMsg = testDb.whatsappMessages.find((m) => m.id === 'wamid.TMPL_TEST_02');
+      assert.ok(savedMsg);
+      assert.strictEqual(savedMsg.tenantId, 'tenant-client-a');
+
+      const savedConvo = testDb.whatsappConversations.find((c) => c.id === '917233882089');
+      assert.ok(savedConvo);
+      assert.strictEqual(savedConvo.tenantId, 'tenant-client-a');
+    } finally {
+      whatsappClient.callGraphApi = originalCall;
       await new Promise((resolve, reject) => server.close((err) => err ? reject(err) : resolve()));
     }
   });

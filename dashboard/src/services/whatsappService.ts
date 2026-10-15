@@ -245,6 +245,22 @@ export const whatsappService = {
     });
   },
 
+  async sendMediaMessage(payload: {
+    to: string;
+    mediaType?: 'image' | 'document' | 'audio' | 'video';
+    mediaUrl?: string;
+    mediaId?: string;
+    caption?: string;
+    filename?: string;
+    tenantId?: string;
+  }): Promise<WhatsAppOperationResult> {
+    return request('/api/whatsapp/messages/send-media', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  },
+
   async retryMessage(id: string): Promise<WhatsAppOperationResult> {
     return request(`/api/whatsapp/messages/retry/${id}`, {
       method: 'POST',

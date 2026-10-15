@@ -330,6 +330,65 @@ class WhatsAppClient {
   }
 
   /**
+   * Send media message (image, document, audio, video) via official Meta WhatsApp Cloud API
+   */
+  async sendMediaMessage(config, { to, mediaType = 'image', mediaUrl, mediaId, caption = '', filename = '' }, db, saveDb) {
+    if (!config.token || !config.phoneNumberId) {
+      return {
+        success: false,
+        error: 'WhatsApp Business API is not configured. Missing Phone Number ID or Token.',
+      };
+    }
+
+    const cleanTo = String(to).replace(/\D/g, '');
+    if (!cleanTo || cleanTo.length < 10) {
+      return {
+        success: false,
+        error: `Invalid destination phone number "${to}". Must include country code with at least 10 digits.`,
+      };
+    }
+
+    const validTypes = ['image', 'document', 'audio', 'video'];
+    const resolvedType = validTypes.includes(mediaType) ? mediaType : 'image';
+
+    const mediaObj = {};
+    if (mediaUrl) {
+      mediaObj.link = mediaUrl.trim();
+    } else if (mediaId) {
+      mediaObj.id = String(mediaId).trim();
+    } else {
+      return {
+        success: false,
+        error: 'Either a valid public media URL (link) or an uploaded Meta media ID is required.',
+      };
+    }
+
+    if (caption && ['image', 'document', 'video'].includes(resolvedType)) {
+      mediaObj.caption = caption.trim();
+    }
+    if (filename && resolvedType === 'document') {
+      mediaObj.filename = filename.trim();
+    }
+
+    const payload = {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: cleanTo,
+      type: resolvedType,
+      [resolvedType]: mediaObj,
+    };
+
+    return this.callGraphApi({
+      endpoint: `/${config.phoneNumberId}/messages`,
+      method: 'POST',
+      body: payload,
+      token: config.token,
+      db,
+      saveDb,
+    });
+  }
+
+  /**
    * Exchange Meta Embedded Signup OAuth authorization code for Access Token
    */
   async exchangeOAuthCode(config, code, db, saveDb) {
