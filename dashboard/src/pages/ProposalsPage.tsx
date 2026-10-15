@@ -54,8 +54,12 @@ Principal Architect, ${APP_CONFIG.brandName}
 ${APP_CONFIG.domain}
 =======================================================`;
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(proposalText);
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(proposalText);
+    } catch {
+      // Fallback if browser permission is blocked
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
     toast({

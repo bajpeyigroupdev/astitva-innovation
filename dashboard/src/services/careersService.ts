@@ -1,4 +1,5 @@
 import { authService } from "../auth/authService";
+import { getErrorMessage } from "../lib/errors";
 
 export interface JobItem {
   id: string;
@@ -74,8 +75,8 @@ export const careersService = {
         body: JSON.stringify(job)
       });
       return await res.json();
-    } catch (e: any) {
-      return { success: false, error: e?.message || "Failed to create job" };
+    } catch (e) {
+      return { success: false, error: getErrorMessage(e, "Failed to create job") };
     }
   },
 
@@ -92,8 +93,8 @@ export const careersService = {
         body: JSON.stringify(job)
       });
       return await res.json();
-    } catch (e: any) {
-      return { success: false, error: e?.message || "Failed to update job" };
+    } catch (e) {
+      return { success: false, error: getErrorMessage(e, "Failed to update job") };
     }
   },
 
@@ -109,8 +110,8 @@ export const careersService = {
         }
       });
       return await res.json();
-    } catch (e: any) {
-      return { success: false, error: e?.message || "Failed to toggle status" };
+    } catch (e) {
+      return { success: false, error: getErrorMessage(e, "Failed to toggle status") };
     }
   },
 
@@ -126,8 +127,8 @@ export const careersService = {
         }
       });
       return await res.json();
-    } catch (e: any) {
-      return { success: false, error: e?.message || "Failed to delete job" };
+    } catch (e) {
+      return { success: false, error: getErrorMessage(e, "Failed to delete job") };
     }
   },
 
@@ -170,8 +171,8 @@ export const careersService = {
         body: JSON.stringify({ status, adminNotes })
       });
       return await res.json();
-    } catch (e: any) {
-      return { success: false, error: e?.message || "Failed to update application" };
+    } catch (e) {
+      return { success: false, error: getErrorMessage(e, "Failed to update application") };
     }
   },
 
@@ -187,8 +188,8 @@ export const careersService = {
         }
       });
       return await res.json();
-    } catch (e: any) {
-      return { success: false, error: e?.message || "Failed to delete application" };
+    } catch (e) {
+      return { success: false, error: getErrorMessage(e, "Failed to delete application") };
     }
   }
 };

@@ -8,6 +8,22 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    proxy: {
+      "/api": {
+        target: process.env.VITE_API_URL || "http://127.0.0.1:5000",
+        changeOrigin: true,
+      },
+    },
+  },
+  preview: {
+    host: "::",
+    port: 4173,
+    proxy: {
+      "/api": {
+        target: process.env.VITE_API_URL || "http://127.0.0.1:5000",
+        changeOrigin: true,
+      },
+    },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {

@@ -15,5 +15,5 @@ export const APP_CONFIG = {
     inquiries: "astitva_inquiries",
     adminSession: "astitva_admin_session",
   },
-  sessionDurationHours: 4,
+  sessionDurationHours: 8,
 } as const;

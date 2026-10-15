@@ -1,3 +1,5 @@
+import type { LucideIcon } from "lucide-react";
+
 export interface Inquiry {
   id: string;
   name: string;
@@ -34,5 +36,5 @@ export interface ServiceItem {
   startingPrice: string;
   turnaround: string;
   active: boolean;
-  icon: any;
+  icon: LucideIcon;
 }

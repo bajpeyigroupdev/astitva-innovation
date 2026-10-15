@@ -1,3 +1,5 @@
+import type { LucideIcon } from "lucide-react";
+
 export interface WebsiteLeadInput {
   name: string;
   email: string;
@@ -8,7 +10,7 @@ export interface WebsiteLeadInput {
 }
 
 export interface ServiceItem {
-  icon: any;
+  icon: LucideIcon;
   title: string;
   description: string;
   features: string[];

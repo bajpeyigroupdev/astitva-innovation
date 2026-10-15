@@ -17,22 +17,51 @@ jobs:
         with:
           node-version: 20
           cache-dependency-path: |
+            server/package-lock.json
             astitva-main/package-lock.json
             dashboard/package-lock.json
 
+      - name: Install API Dependencies
+        run: npm ci
+        working-directory: server
+
+      - name: Test API
+        run: npm test
+        working-directory: server
+
+      - name: Install Corporate Website Dependencies
+        run: npm ci
+        working-directory: astitva-main
+
+      - name: Lint Corporate Website
+        run: npm run lint
+        working-directory: astitva-main
+
+      - name: Typecheck Corporate Website
+        run: npx tsc -b --pretty false
+        working-directory: astitva-main
+
       - name: Build Corporate Website
         run: |
-          echo "=== Building astitva-main website ==="
-          cd astitva-main
-          npm ci || npm install
           npm run build
+        working-directory: astitva-main
+
+      - name: Install B2B Dashboard Dependencies
+        run: npm ci
+        working-directory: dashboard
+
+      - name: Lint B2B Dashboard
+        run: npm run lint
+        working-directory: dashboard
+
+      - name: Typecheck B2B Dashboard
+        run: npx tsc -b --pretty false
+        working-directory: dashboard
 
       - name: Build B2B Dashboard
         run: |
-          echo "=== Building B2B dashboard ==="
-          cd dashboard
-          npm ci || npm install
           npm run build
+        working-directory: dashboard
 
       - name: Deploy Corporate Website to Server via SCP
         uses: appleboy/scp-action@v0.1.7
@@ -64,25 +93,60 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           port: ${{ secrets.SERVER_PORT }}
           script: |
+            set -eu
             echo "=== 1. Updating permissions ==="
-            chown -R www-data:www-data /www/wwwroot/astitvainnovation.in /www/wwwroot/b2b.astitvainnovation.in 2>/dev/null || true
-            chmod -R 755 /www/wwwroot/astitvainnovation.in /www/wwwroot/b2b.astitvainnovation.in 2>/dev/null || true
-
-            echo "=== 2. Syncing server source repository ==="
-            if [ -d "/www/wwwroot/astitva-source" ]; then
-              cd /www/wwwroot/astitva-source
-              git fetch origin main
-              git reset --hard origin/main
+            if ! chown -R www-data:www-data /www/wwwroot/astitvainnovation.in /www/wwwroot/b2b.astitvainnovation.in 2>/dev/null; then
+              echo "Ownership update was unavailable; continuing with the configured deployment user."
+            fi
+            if ! chmod -R 755 /www/wwwroot/astitvainnovation.in /www/wwwroot/b2b.astitvainnovation.in 2>/dev/null; then
+              echo "Permission update was unavailable; continuing with existing permissions."
             fi
 
+            echo "=== 2. Syncing server source repository ==="
+            if [ ! -e "/www/wwwroot/astitva-source/.git" ]; then
+              echo "Server source checkout is missing." >&2
+              exit 1
+            fi
+            cd /www/wwwroot/astitva-source
+            git fetch --prune origin main
+            git reset --hard origin/main
+
             echo "=== 3. Syncing backend API service ==="
-            if [ -d "/www/wwwroot/astitva-api" ] && [ -d "/www/wwwroot/astitva-source/server" ]; then
-              cp -r /www/wwwroot/astitva-source/server/* /www/wwwroot/astitva-api/ 2>/dev/null || true
-              cd /www/wwwroot/astitva-api
-              npm install --omit=dev --loglevel=error 2>/dev/null || true
-              pm2 reload astitva-api 2>/dev/null || pm2 start ecosystem.config.js 2>/dev/null || true
+            if [ ! -d "/www/wwwroot/astitva-api" ] || [ ! -d "/www/wwwroot/astitva-source/server" ]; then
+              echo "Backend source or deployment directory is missing." >&2
+              exit 1
+            fi
+            for item in /www/wwwroot/astitva-source/server/*; do
+              [ -e "$item" ] || continue
+              name=${item##*/}
+              case "$name" in
+                data|node_modules|tests|scripts) continue ;;
+              esac
+              cp -a "$item" /www/wwwroot/astitva-api/
+            done
+            cd /www/wwwroot/astitva-api
+            npm ci --omit=dev --loglevel=error
+            if pm2 describe astitva-api >/dev/null 2>&1; then
+              pm2 reload astitva-api --update-env
+            else
+              pm2 start ecosystem.config.js --only astitva-api
+            fi
+            pm2 describe astitva-api >/dev/null
+
+            attempt=1
+            while [ "$attempt" -le 15 ]; do
+              if node -e "const http = require('http'); const req = http.get('http://127.0.0.1:5000/api/health', (res) => { res.resume(); process.exit(res.statusCode === 200 ? 0 : 1); }); req.on('error', () => process.exit(1));"; then
+                break
+              fi
+              attempt=$((attempt + 1))
+              sleep 2
+            done
+            if [ "$attempt" -gt 15 ]; then
+              echo "API health check failed after reload." >&2
+              exit 1
             fi
 
             echo "=== 4. Reloading Nginx ==="
-            nginx -t 2>/dev/null && (nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null) || true
+            nginx -t
+            nginx -s reload
             echo "=== DEPLOYMENT COMPLETED SUCCESSFULLY ==="

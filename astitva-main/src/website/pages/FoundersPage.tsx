@@ -260,7 +260,7 @@ export const FoundersPage = () => {
         founder={selectedFounder}
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onScheduleConsultation={(name) => {
+        onConnect={(name) => {
           setIsModalOpen(false);
           window.location.href = `https://wa.me/917233882089?text=Hello%20${encodeURIComponent(name)},%20I%20would%20like%20to%20schedule%20an%20executive%20architecture%20consultation.`;
         }}

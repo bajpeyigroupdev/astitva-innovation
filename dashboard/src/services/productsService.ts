@@ -1,4 +1,5 @@
 import { authService } from "../auth/authService";
+import { getErrorMessage } from "../lib/errors";
 
 export interface ProductItem {
   id: string;
@@ -56,8 +57,8 @@ export const productsService = {
       });
       const json = await res.json();
       return json;
-    } catch (e: any) {
-      return { success: false, error: e?.message || "Failed to create product" };
+    } catch (e) {
+      return { success: false, error: getErrorMessage(e, "Failed to create product") };
     }
   },
 
@@ -74,8 +75,8 @@ export const productsService = {
       });
       const json = await res.json();
       return json;
-    } catch (e: any) {
-      return { success: false, error: e?.message || "Failed to update product" };
+    } catch (e) {
+      return { success: false, error: getErrorMessage(e, "Failed to update product") };
     }
   },
 

@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { Mail, Phone, MapPin, ShieldCheck, CreditCard, ArrowUpRight } from "lucide-react";
 
 interface FooterProps {
-  onOpenLegal: (type: "privacy" | "terms" | "refund") => void;
+  onOpenLegal?: (type: "privacy" | "terms" | "refund") => void;
 }
 
 export const Footer = ({ onOpenLegal }: FooterProps) => {

@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { Link, NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
+import RouteLoadingFallback from "../components/RouteLoadingFallback";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -25,10 +26,16 @@ import { authService } from "../auth/authService";
 import { APP_CONFIG } from "../constants/config";
 import { useToast } from "@/hooks/use-toast";
 import { notificationService } from "../services/notificationService";
+import { normalizeWhatsAppTab } from "../constants/whatsappTabs";
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+}
 
 export const PanelLayout = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
@@ -42,17 +49,21 @@ export const PanelLayout = () => {
       });
     });
 
-    const handleBeforeInstall = (e: any) => {
+    const handleBeforeInstall = (e: Event) => {
       e.preventDefault();
-      setDeferredPrompt(e);
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
     };
-    window.addEventListener("beforeinstallprompt", handleBeforeInstall);
+    window.addEventListener("beforeinstallprompt", handleBeforeInstall as EventListener);
 
     return () => {
       notificationService.stopInquiryMonitor();
-      window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstall as EventListener);
     };
-  }, []);
+  }, [toast]);
+
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [location.pathname, location.search]);
 
   const handleLogout = () => {
     authService.logout();
@@ -104,7 +115,7 @@ export const PanelLayout = () => {
             {navItems.map((item) => {
               const isWhatsApp = item.to === "/whatsapp";
               const isWhatsAppActive = location.pathname.startsWith("/whatsapp");
-              const currentTab = new URLSearchParams(location.search).get("tab") || "overview";
+              const currentTab = normalizeWhatsAppTab(new URLSearchParams(location.search).get("tab")) || "overview";
 
               return (
                 <div key={item.to} className="space-y-1">
@@ -146,11 +157,13 @@ export const PanelLayout = () => {
                         { tab: "diagnostics", label: "10. Diagnostics & Logs" },
                         { tab: "security", label: "11. Security & RBAC" },
                       ].map((sub) => {
-                        const isSubActive = currentTab === sub.tab || (sub.tab === "chats" && currentTab === "messages");
+                        const isSubActive = currentTab === sub.tab;
+                        const subnavParams = new URLSearchParams(location.search);
+                        subnavParams.set("tab", sub.tab);
                         return (
                           <Link
                             key={sub.tab}
-                            to={`/whatsapp?tab=${sub.tab}`}
+                            to={`/whatsapp?${subnavParams.toString()}`}
                             className={`block px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors ${
                               isSubActive
                                 ? "bg-primary/20 text-primary font-semibold"
@@ -227,9 +240,12 @@ export const PanelLayout = () => {
 
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               className="p-2 text-foreground hover:text-primary"
               aria-label="Toggle navigation"
+              aria-expanded={isMobileMenuOpen}
+              aria-controls="dashboard-mobile-navigation"
             >
               {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
@@ -238,7 +254,7 @@ export const PanelLayout = () => {
 
         {/* Mobile Navigation Drawer */}
         {isMobileMenuOpen && (
-          <div className="lg:hidden bg-card border-b border-border p-4 space-y-2 animate-in slide-in-from-top-2 duration-200">
+          <nav id="dashboard-mobile-navigation" aria-label="Mobile navigation" className="lg:hidden bg-card border-b border-border p-4 space-y-2 animate-in slide-in-from-top-2 duration-200">
             {navItems.map((item) => (
               <NavLink
                 key={item.to}
@@ -264,12 +280,14 @@ export const PanelLayout = () => {
               <LogOut className="w-3.5 h-3.5 mr-1.5" />
               Sign Out
             </Button>
-          </div>
+          </nav>
         )}
 
         {/* Main Content Workspace */}
         <main className="p-4 sm:p-6 lg:p-8 flex-grow">
-          <Outlet />
+          <Suspense fallback={<RouteLoadingFallback />}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
 

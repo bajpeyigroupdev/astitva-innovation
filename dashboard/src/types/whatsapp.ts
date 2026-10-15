@@ -62,7 +62,7 @@ export interface WhatsAppMessage {
     pricing_model: string;
     category: string;
   };
-  rawPayload?: any;
+  rawPayload?: unknown;
 }
 
 export interface WhatsAppTemplate {
@@ -121,7 +121,7 @@ export interface WhatsAppWebhookLog {
   signatureVerified: boolean;
   remoteIp?: string;
   processedCount: number;
-  payload: any;
+  payload: unknown;
 }
 
 export interface WhatsAppApiLog {
@@ -129,9 +129,9 @@ export interface WhatsAppApiLog {
   timestamp: string;
   method: 'GET' | 'POST' | 'DELETE' | 'PATCH';
   endpoint: string;
-  requestPayload: any;
+  requestPayload: unknown;
   responseStatus: number;
-  responseBody: any;
+  responseBody: unknown;
   latencyMs: number;
   success: boolean;
   errorMessage?: string;
@@ -176,7 +176,7 @@ export interface WhatsAppAuditLog {
   timestamp: string;
   actor: string;
   action: string;
-  details: any;
+  details: unknown;
 }
 
 export interface WhatsAppHealthCheck {
@@ -254,4 +254,19 @@ export interface WhatsAppSecurityPosture {
   dataDeletionEndpoint: string;
   privacyPolicyUrl: string;
   currentAdmin: string;
+}
+
+export interface WhatsAppTenant {
+  id: string;
+  name: string;
+  clientName?: string;
+  clientEmail?: string;
+  wabaId: string;
+  phoneNumberId: string;
+  businessPhoneNumber?: string;
+  displayName?: string;
+  status: 'Active' | 'Pending' | 'Disconnected';
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt?: string;
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,7 +32,21 @@ import {
 import { careersService, JobItem, JobApplicationItem } from "../services/careersService";
 
 export const CareersPage = () => {
-  const [activeTab, setActiveTab] = useState<"jobs" | "candidates">("jobs");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const rawTab = searchParams.get("tab");
+  const activeTab: "jobs" | "candidates" = rawTab === "candidates" ? "candidates" : "jobs";
+
+  const handleTabChange = (tab: "jobs" | "candidates") => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (tab === "candidates") {
+        next.set("tab", "candidates");
+      } else {
+        next.delete("tab");
+      }
+      return next;
+    });
+  };
   const [jobs, setJobs] = useState<JobItem[]>([]);
   const [applications, setApplications] = useState<JobApplicationItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -252,7 +267,7 @@ export const CareersPage = () => {
               Post New Position
             </Button>
           ) : (
-            <Button onClick={() => setActiveTab("jobs")} variant="outline" className="text-xs h-9">
+            <Button onClick={() => handleTabChange("jobs")} variant="outline" className="text-xs h-9">
               <Briefcase className="w-4 h-4 mr-1.5" />
               View Open Roles
             </Button>
@@ -306,7 +321,8 @@ export const CareersPage = () => {
       {/* Tabs Switcher */}
       <div className="flex items-center gap-2 border-b border-border/60 pb-1">
         <button
-          onClick={() => setActiveTab("jobs")}
+          type="button"
+          onClick={() => handleTabChange("jobs")}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
             activeTab === "jobs"
               ? "bg-primary text-white shadow-md shadow-primary/20"
@@ -318,7 +334,8 @@ export const CareersPage = () => {
         </button>
 
         <button
-          onClick={() => setActiveTab("candidates")}
+          type="button"
+          onClick={() => handleTabChange("candidates")}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
             activeTab === "candidates"
               ? "bg-primary text-white shadow-md shadow-primary/20"
@@ -451,7 +468,7 @@ export const CareersPage = () => {
                       size="sm"
                       onClick={() => {
                         setSelectedJobFilter(job.id);
-                        setActiveTab("candidates");
+                        handleTabChange("candidates");
                       }}
                       className="text-xs h-7 px-2.5 bg-primary/20 hover:bg-primary/30 text-primary border border-primary/30"
                     >

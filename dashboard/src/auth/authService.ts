@@ -3,6 +3,17 @@ import { AdminSession } from "../types";
 
 const SESSION_KEY = APP_CONFIG.storageKeys.adminSession;
 const SESSION_DURATION_MS = APP_CONFIG.sessionDurationHours * 60 * 60 * 1000;
+const REQUEST_TIMEOUT_MS = 10_000;
+
+const fetchWithTimeout = async (url: string, init: RequestInit): Promise<Response> => {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+};
 
 export const authService = {
   /**
@@ -12,15 +23,15 @@ export const authService = {
    */
   async login(usernameInput: string, passwordInput: string): Promise<{ success: boolean; error?: string }> {
     const trimmedUser = usernameInput.trim();
-    const trimmedPass = passwordInput.trim();
+    const password = passwordInput;
 
-    if (!trimmedUser || !trimmedPass) {
+    if (!trimmedUser || !password) {
       return { success: false, error: "Please enter both Administrator ID and Password." };
     }
 
     try {
       const apiBase = import.meta.env.VITE_API_URL || "";
-      const response = await fetch(`${apiBase}/api/auth/login`, {
+      const response = await fetchWithTimeout(`${apiBase}/api/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -28,7 +39,7 @@ export const authService = {
         },
         body: JSON.stringify({
           username: trimmedUser,
-          password: trimmedPass,
+          password,
         }),
       });
 
@@ -43,8 +54,11 @@ export const authService = {
 
         try {
           sessionStorage.setItem(SESSION_KEY, JSON.stringify(sessionData));
-        } catch (e) {
-          console.error("Session storage error:", e);
+        } catch {
+          return {
+            success: false,
+            error: "Secure browser session storage is unavailable. Enable it and try again.",
+          };
         }
 
         return { success: true };
@@ -55,12 +69,39 @@ export const authService = {
         error: data?.error || "Access Denied: Invalid Administrator ID or Password.",
       };
     } catch (networkErr) {
-      console.warn("API authentication server unreachable, checking local fallback:", networkErr);
+      console.warn("API authentication server unreachable:", networkErr);
       return {
         success: false,
         error: "Unable to reach the Authentication API server. Please check your network or server status.",
       };
     }
+  },
+
+  async verifySession(): Promise<boolean> {
+    const token = this.getToken();
+    if (!token) return false;
+
+    const apiBase = import.meta.env.VITE_API_URL || "";
+    const response = await fetchWithTimeout(`${apiBase}/api/auth/verify`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+    });
+
+    if (response.status === 401 || response.status === 403) {
+      this.logout();
+      return false;
+    }
+    if (!response.ok) {
+      throw new Error(`Session check failed (${response.status}).`);
+    }
+
+    const data = await response.json().catch(() => null);
+    if (data?.valid === true) return true;
+    this.logout();
+    return false;
   },
 
   /**
@@ -122,6 +163,10 @@ export const authService = {
         }
       }).catch(() => {});
     }
-    sessionStorage.removeItem(SESSION_KEY);
+    try {
+      sessionStorage.removeItem(SESSION_KEY);
+    } catch (error) {
+      console.warn("Unable to clear the browser session:", error);
+    }
   },
 };

@@ -2,9 +2,10 @@ import { authService } from "../auth/authService";
 import { Inquiry } from "../types";
 
 let audioCtx: AudioContext | null = null;
-let pollTimer: any = null;
-let knownInquiryIds = new Set<string>();
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+const knownInquiryIds = new Set<string>();
 let isInitialized = false;
+let pollController: AbortController | null = null;
 
 export const notificationService = {
   /**
@@ -12,7 +13,7 @@ export const notificationService = {
    */
   playChime() {
     try {
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      const AudioContextClass = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!AudioContextClass) return;
 
       if (!audioCtx || audioCtx.state === 'closed') {
@@ -77,12 +78,13 @@ export const notificationService = {
       if ("serviceWorker" in navigator) {
         const reg = await navigator.serviceWorker.ready;
         if (reg && reg.showNotification) {
-          return reg.showNotification(title, {
+          const serviceWorkerOptions: NotificationOptions & { vibrate?: number[] } = {
             icon: "/favicon.png",
             badge: "/favicon.png",
             vibrate: [200, 100, 200],
             ...options
-          });
+          };
+          return reg.showNotification(title, serviceWorkerOptions);
         }
       }
 
@@ -113,16 +115,21 @@ export const notificationService = {
     if (pollTimer) clearInterval(pollTimer);
 
     const checkNewLeads = async () => {
+      if (pollController) return;
       const token = authService.getToken();
       if (!token) return;
 
+      const controller = new AbortController();
+      pollController = controller;
+      const timeoutId = window.setTimeout(() => controller.abort(), 10_000);
       try {
         const apiBase = import.meta.env.VITE_API_URL || "";
         const res = await fetch(`${apiBase}/api/inquiries`, {
           headers: {
             Authorization: `Bearer ${token}`,
             Accept: "application/json"
-          }
+          },
+          signal: controller.signal,
         });
 
         if (res.ok) {
@@ -158,6 +165,9 @@ export const notificationService = {
         }
       } catch (err) {
         // Silently continue
+      } finally {
+        window.clearTimeout(timeoutId);
+        if (pollController === controller) pollController = null;
       }
     };
 
@@ -172,5 +182,7 @@ export const notificationService = {
       clearInterval(pollTimer);
       pollTimer = null;
     }
+    pollController?.abort();
+    pollController = null;
   }
 };

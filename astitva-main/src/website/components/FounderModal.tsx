@@ -1,7 +1,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FounderProfile } from "../services/foundersService";
+import type { FounderProfile } from "../services/foundersService";
 import { 
   Linkedin, 
   Instagram, 

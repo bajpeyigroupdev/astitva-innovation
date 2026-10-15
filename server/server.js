@@ -4,6 +4,10 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { authenticateAdmin } = require('./adminAuth');
+const { sanitizeAdminSettings, mergeAdminSettings } = require('./settingsSecurity');
+const { clearLegacyDefaultVerifyToken, clearUnverifiedWhatsAppClaims } = require('./whatsapp/whatsappConfigSecurity');
+const createMetaDataDeletionRouter = require('./metaDataDeletionRoutes');
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
@@ -11,368 +15,15 @@ require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const DATA_DIR = path.join(__dirname, 'data');
-const DB_FILE = path.join(DATA_DIR, 'db.json');
-
-// Ensure data directory exists
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
-
-// Initial database schema seed
-const initialSeed = {
-  settings: {
-    brandName: "Astitva Innovation",
-    phone: "+91 7233882089",
-    whatsappNumber: "917233882089",
-    contactEmail: "contact@astitvainnovation.in",
-    supportEmail: "support@astitvainnovation.in",
-    salesEmail: "support@astitvainnovation.in",
-    address: "Global Software Engineering Hub • India & Remote",
-    workingHours: "Mon - Sat: 9:30 AM - 7:30 PM IST",
-    telegramBotToken: "",
-    telegramChatId: "",
-    notificationsEnabled: true
-  },
-  products: [
-    {
-      id: "prod-meethi-chat",
-      name: "Meethi Chat",
-      tagline: "Social Voice & Friendship Platform",
-      category: "Social Voice & Community",
-      badge: "Official Flagship App",
-      description: "Meethi Chat is a premium social voice platform designed for meaningful one-to-one conversations, friendships, and real-time voice calling. Users can discover people through smart matchmaking, personalize their profiles, send virtual gifts, and manage their wallet while enjoying private and engaging conversations.",
-      storeUrl: "https://play.google.com/store/apps/details?id=com.umangchatlive&hl=en_IN",
-      storeType: "google-play",
-      packageName: "com.umangchatlive",
-      iconUrl: "/meethi-chat-icon.png",
-      status: "Active",
-      isFeatured: true,
-      technologies: ["WebRTC", "Node.js", "Socket.IO", "Redis", "Android Native"],
-      features: [
-        "Real-Time 1-on-1 Voice Calling with ultra-low latency WebRTC",
-        "Smart Matchmaking interest-based algorithm",
-        "Profile Customization with avatars and custom badges",
-        "Virtual Gifting with animated rewards",
-        "Wallet & Instant Recharge infrastructure",
-        "Granular Privacy Controls & caller security",
-        "Instant Block & Rapid Incident Reporting",
-        "Verified Host & Talent Creator Ecosystem",
-        "Safe Community 24/7 automated filters"
-      ],
-      metrics: [
-        { label: "Engine", value: "Real-Time WebRTC Audio" },
-        { label: "Community", value: "Verified Hosts" },
-        { label: "Safety", value: "24/7 Moderation" }
-      ],
-      createdAt: new Date().toISOString()
-    }
-  ],
-  inquiries: [
-    {
-      id: "INQ-2026-001",
-      name: "Vikram Malhotra",
-      email: "v.malhotra@paysecure.tech",
-      phone: "+91 98201 44556",
-      service: "FinTech & Payment Gateway",
-      budget: "₹5,00,000 - ₹10,00,000",
-      message: "Looking for dual payment gateway routing (Razorpay + Stripe fallback) with automated webhook reconciliation and fraud velocity checks.",
-      status: "In Review",
-      date: new Date(Date.now() - 2 * 3600000).toISOString(),
-    },
-    {
-      id: "INQ-2026-002",
-      name: "Ananya Sharma",
-      email: "ananya@finscale.io",
-      phone: "+91 98112 33445",
-      service: "Custom SaaS Development",
-      budget: "₹10,00,000+",
-      message: "Multi-tenant B2B lending platform with KYC verification microservice and high throughput ledger accounting.",
-      status: "New",
-      date: new Date(Date.now() - 5 * 3600000).toISOString(),
-    },
-    {
-      id: "INQ-2026-003",
-      name: "Rajesh Singhania",
-      email: "rajesh@singhaniagroup.in",
-      phone: "+91 98450 11223",
-      service: "Enterprise Cloud & DevOps",
-      budget: "₹3,00,000 - ₹5,00,000",
-      message: "AWS ECS migration from monolithic droplets, automated CI/CD pipeline, and 99.99% uptime SLA monitoring.",
-      status: "Contacted",
-      date: new Date(Date.now() - 24 * 3600000).toISOString(),
-    }
-  ],
-  fintechLogs: [
-    {
-      id: "PAY-TXN-8821",
-      gateway: "Razorpay",
-      event: "payment.captured",
-      amount: 145000,
-      currency: "INR",
-      status: "success",
-      environment: "LIVE",
-      signatureVerified: true,
-      timestamp: new Date(Date.now() - 3600000).toISOString(),
-    },
-    {
-      id: "PAY-TXN-8822",
-      gateway: "Stripe",
-      event: "payment_intent.succeeded",
-      amount: 250000,
-      currency: "INR",
-      status: "success",
-      environment: "LIVE",
-      signatureVerified: true,
-      timestamp: new Date(Date.now() - 7200000).toISOString(),
-    },
-    {
-      id: "PAY-SIM-1001",
-      gateway: "Cashfree",
-      event: "order.paid.simulated",
-      amount: 49999,
-      currency: "INR",
-      status: "success",
-      environment: "DEMO / SANDBOX",
-      signatureVerified: true,
-      timestamp: new Date().toISOString(),
-    }
-  ],
-  services: [
-    { id: "fintech", name: "FinTech & Payment Gateway Engineering", enabled: true, startingPrice: "₹1,50,000", turnaround: "3-5 Weeks" },
-    { id: "saas", name: "Custom SaaS & Enterprise Platforms", enabled: true, startingPrice: "₹2,50,000", turnaround: "4-8 Weeks" },
-    { id: "cloud", name: "Cloud Architecture & High-Scale DevOps", enabled: true, startingPrice: "₹1,00,000", turnaround: "2-3 Weeks" },
-    { id: "ai", name: "AI Integration & Workflow Automation", enabled: true, startingPrice: "₹1,20,000", turnaround: "2-4 Weeks" }
-  ],
-  founders: [
-    {
-      id: "founder-shivansh",
-      name: "Shivansh Kamal Bajpeyi",
-      position: "Founder & Chief Executive Officer",
-      roleBadge: "CEO & Principal Architect",
-      bio: "Visionary software architect leading technical strategy, distributed platforms, WebRTC systems, and FinTech infrastructures at Astitva Innovation.",
-      portfolioSummary: "Shivansh Kamal Bajpeyi heads the engineering direction and strategic technology roadmaps at Astitva Innovation. With deep expertise across high-concurrency systems, real-time voice architectures (WebRTC), high-throughput payment routing, and enterprise cloud DevOps, Shivansh spearheaded the development of flagship products like Meethi Chat and bank-grade FinTech middleware.",
-      keySkills: ["Distributed Systems", "FinTech & Payment Gateways", "WebRTC & Audio Protocols", "Cloud Architecture & DevOps", "Full-Stack System Design"],
-      photoUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80",
-      linkedin: "https://www.linkedin.com/in/shivansh-bajpeyi",
-      instagram: "https://www.instagram.com/shivansh_bajpeyi",
-      email: "shivansh@astitvainnovation.in",
-      phone: "+91 7233882089",
-      order: 1,
-      enabled: true
-    },
-    {
-      id: "founder-shiv-prakash",
-      name: "Shiv Prakash",
-      position: "Co-Founder & Chief Operations Officer",
-      roleBadge: "COO & Enterprise Strategy Lead",
-      bio: "Operations and corporate strategy leader steering organizational scaling, client partnerships, compliance, and international delivery.",
-      portfolioSummary: "Shiv Prakash oversees operational lifecycles, commercial client relationships, and business development initiatives. Bringing extensive experience in agile team scaling, strategic growth, and operational management, Shiv drives the commercialization of Astitva's enterprise software solutions and ensures top-tier client execution.",
-      keySkills: ["Operations Management", "Business Strategy", "Client Delivery & SOWs", "Product Commercialization", "Agile Execution"],
-      photoUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=600&q=80",
-      linkedin: "https://www.linkedin.com/in/shiv-prakash",
-      instagram: "https://www.instagram.com/shiv_prakash",
-      email: "shivprakash@astitvainnovation.in",
-      phone: "+91 7233882089",
-      order: 2,
-      enabled: true
-    }
-  ],
-  jobs: [
-    {
-      id: "job-fullstack-01",
-      title: "Senior Full-Stack Architect (Node.js & React)",
-      department: "Engineering",
-      location: "Remote / Hybrid",
-      type: "Full-Time",
-      experience: "3 - 6 Years",
-      salary: "₹12,00,000 - ₹24,00,000 LPA",
-      description: "Architect, develop, and scale high-concurrency microservices, FinTech payment routing integrations, and responsive administrative web applications.",
-      requirements: [
-        "Deep expertise in TypeScript, Node.js, Express, and React",
-        "Strong experience with Redis caching, PostgreSQL / MongoDB, and real-time WebSockets",
-        "Hands-on background with Docker, Nginx reverse proxying, and cloud deployments",
-        "Understanding of payment gateway lifecycles (Razorpay, Cashfree, Stripe) and webhook idempotency"
-      ],
-      benefits: [
-        "High-ownership engineering culture",
-        "Flexible remote work hours",
-        "Performance equity incentives",
-        "Direct collaboration with founding architects"
-      ],
-      status: "Active",
-      enabled: true,
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: "job-mobile-02",
-      title: "React Native / Mobile Engineer (Audio & WebRTC)",
-      department: "Mobile Engineering",
-      location: "Remote",
-      type: "Full-Time",
-      experience: "2 - 5 Years",
-      salary: "₹10,00,000 - ₹20,00,000 LPA",
-      description: "Develop, optimize, and ship high-performance features for flagship voice social platform Meethi Chat, managing low-latency audio streams and native device bridges.",
-      requirements: [
-        "Demonstrated mastery of React Native / Android Native bridging",
-        "Experience with WebRTC audio streams, InCallManager, and background socket lifecycles",
-        "State management proficiency (Redux / Context / Zustand)",
-        "Proven track record of deploying polished apps to Google Play Console"
-      ],
-      benefits: [
-        "Shape social voice technology impacting thousands of daily active users",
-        "Modern hardware budget & remote allowance",
-        "Direct product roadmap influence"
-      ],
-      status: "Active",
-      enabled: true,
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: "job-devops-03",
-      title: "DevOps & Cloud Security Specialist",
-      department: "Infrastructure",
-      location: "Remote",
-      type: "Full-Time",
-      experience: "3 - 5 Years",
-      salary: "₹14,00,000 - ₹26,00,000 LPA",
-      description: "Lead production cloud infrastructure, automated GitHub Actions CI/CD pipelines, SSL automation, and bank-grade application firewalls.",
-      requirements: [
-        "Advanced Linux server administration (Ubuntu / Debian)",
-        "GitHub Actions CI/CD automation and container orchestration (Docker)",
-        "Nginx virtual host security, rate limiting, and Let's Encrypt Certbot",
-        "System telemetry, PM2 cluster management, and DDoS mitigation strategies"
-      ],
-      benefits: [
-        "Ownership over high-availability infrastructure",
-        "Cloud experimentation budget",
-        "Autonomous engineering schedules"
-      ],
-      status: "Active",
-      enabled: true,
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: "job-uiux-04",
-      title: "Lead Product & UI/UX Designer",
-      department: "Design & Product",
-      location: "Remote",
-      type: "Full-Time",
-      experience: "2 - 4 Years",
-      salary: "₹8,00,000 - ₹16,00,000 LPA",
-      description: "Design futuristic, ultra-polished, and intuitive user experiences for enterprise B2B panels, corporate showcases, and mobile consumer apps.",
-      requirements: [
-        "Mastery of Figma, modern design tokens, auto-layout, and clickable prototypes",
-        "Exceptional eye for typography, glassmorphism, dark-mode aesthetics, and micro-interactions",
-        "Experience collaborating directly with frontend engineers for pixel-perfect execution"
-      ],
-      benefits: [
-        "Design-led product decisions",
-        "Portfolio freedom on major releases",
-        "Flexible working arrangement"
-      ],
-      status: "Active",
-      enabled: true,
-      createdAt: new Date().toISOString()
-    }
-  ],
-  jobApplications: [
-    {
-      id: "APP-2026-101",
-      jobId: "job-fullstack-01",
-      jobTitle: "Senior Full-Stack Architect (Node.js & React)",
-      name: "Aditya Verma",
-      email: "aditya.verma@example.com",
-      phone: "+91 98765 43210",
-      experience: "4.5 Years",
-      currentCompany: "TechScale Systems",
-      resumeUrl: "https://drive.google.com/file/d/sample-resume-aditya/view",
-      portfolioUrl: "https://github.com/aditya-dev",
-      coverNote: "Experienced in building high-throughput microservices and React dashboards with WebSockets. Looking forward to engineering scalable products at Astitva Innovation.",
-      status: "Under Review",
-      adminNotes: "Solid background in WebSockets, Redis caching, and Node.js. Recommended for technical interview.",
-      appliedAt: new Date(Date.now() - 24 * 3600000).toISOString()
-    }
-  ],
-  whatsappConfig: {
-    status: "Disconnected",
-    wabaId: "",
-    phoneNumberId: "",
-    businessPhoneNumber: "+91 7233882089",
-    displayName: "Astitva Innovation",
-    qualityRating: "GREEN",
-    codeVerificationStatus: "NOT_VERIFIED",
-    messagingLimitTier: "TIER_1K",
-    webhookVerified: false,
-    webhookSubscriptionStatus: "Pending",
-    verifyToken: "astitva_wa_verify_token_2026_secure",
-    apiVersion: "v20.0",
-    lastSync: null,
-    errorMessage: null,
-    paymentConfigured: false,
-    permissionsReviewed: false,
-    privacyPolicyVerified: true
-  },
-  whatsappContacts: [
-    {
-      id: "cnt-astitva-support",
-      phone: "917233882089",
-      name: "Astitva Admin Test Desk",
-      consentStatus: "OPTED_IN",
-      consentSource: "ADMIN_VERIFIED",
-      consentTimestamp: new Date().toISOString(),
-      optOutTimestamp: null,
-      notes: "Internal testing contact for Meta WhatsApp Cloud API verification and review screencasts.",
-      tags: ["Internal", "Admin", "Test"]
-    }
-  ],
-  whatsappConversations: [],
-  whatsappMessages: [],
-  whatsappTemplates: [
-    {
-      id: "tmpl_welcome_lead_v1",
-      name: "astitva_welcome_lead",
-      category: "UTILITY",
-      language: "en_US",
-      status: "LOCAL_DRAFT",
-      components: [
-        {
-          type: "BODY",
-          text: "Hello {{1}}, thank you for reaching out to Astitva Innovation! Our senior engineering desk has received your request regarding {{2}}. An architect will connect with you shortly."
-        },
-        {
-          type: "FOOTER",
-          text: "Astitva Innovation • Enterprise Software Solutions"
-        }
-      ],
-      lastSyncedAt: null
-    },
-    {
-      id: "tmpl_proposal_ready_v1",
-      name: "astitva_proposal_ready",
-      category: "UTILITY",
-      language: "en_US",
-      status: "LOCAL_DRAFT",
-      components: [
-        {
-          type: "BODY",
-          text: "Hi {{1}}, your technical architecture proposal for {{2}} is ready for review. Access your statement of work here: {{3}}."
-        },
-        {
-          type: "FOOTER",
-          text: "Astitva Innovation Engineering Desk"
-        }
-      ],
-      lastSyncedAt: null
-    }
-  ],
-  whatsappWebhookLogs: [],
-  whatsappApiLogs: [],
-  whatsappDeliveryLogs: [],
-  whatsappEvidence: [],
-  whatsappChecklist: [],
-  auditLogs: []
-};
+const {
+  DATA_DIR,
+  DB_FILE,
+  initialSeed,
+  getDb,
+  saveDb,
+  createNamedBackup,
+  restoreFromBackupFile,
+} = require('./storage');
 
 // Send real-time instant alert to Admin's phone via Telegram
 function sendTelegramAlert(text) {
@@ -426,101 +77,6 @@ function sendTelegramAlert(text) {
   });
 }
 
-// Thread-safe / atomic DB reader and writer with auto-migration
-function getDb() {
-  try {
-    if (!fs.existsSync(DB_FILE)) {
-      fs.writeFileSync(DB_FILE, JSON.stringify(initialSeed, null, 2));
-      return JSON.parse(JSON.stringify(initialSeed));
-    }
-    const raw = fs.readFileSync(DB_FILE, 'utf8');
-    const data = JSON.parse(raw);
-
-    // Ensure collections exist even if migrating from older schema
-    let modified = false;
-    if (!data.settings) {
-      data.settings = initialSeed.settings;
-      modified = true;
-    }
-    if (!data.products || !Array.isArray(data.products)) {
-      data.products = initialSeed.products;
-      modified = true;
-    }
-    if (!data.founders || !Array.isArray(data.founders)) {
-      data.founders = initialSeed.founders;
-      modified = true;
-    }
-    if (!data.jobs || !Array.isArray(data.jobs)) {
-      data.jobs = initialSeed.jobs;
-      modified = true;
-    }
-    if (!data.jobApplications || !Array.isArray(data.jobApplications)) {
-      data.jobApplications = initialSeed.jobApplications;
-      modified = true;
-    }
-    if (!data.whatsappConfig) {
-      data.whatsappConfig = initialSeed.whatsappConfig;
-      modified = true;
-    }
-    if (!data.whatsappConversations || !Array.isArray(data.whatsappConversations)) {
-      data.whatsappConversations = initialSeed.whatsappConversations;
-      modified = true;
-    }
-    if (!data.whatsappMessages || !Array.isArray(data.whatsappMessages)) {
-      data.whatsappMessages = initialSeed.whatsappMessages;
-      modified = true;
-    }
-    if (!data.whatsappTemplates || !Array.isArray(data.whatsappTemplates)) {
-      data.whatsappTemplates = initialSeed.whatsappTemplates;
-      modified = true;
-    }
-    if (!data.whatsappWebhookLogs || !Array.isArray(data.whatsappWebhookLogs)) {
-      data.whatsappWebhookLogs = initialSeed.whatsappWebhookLogs;
-      modified = true;
-    }
-    if (!data.whatsappApiLogs || !Array.isArray(data.whatsappApiLogs)) {
-      data.whatsappApiLogs = initialSeed.whatsappApiLogs;
-      modified = true;
-    }
-    if (!data.whatsappContacts || !Array.isArray(data.whatsappContacts)) {
-      data.whatsappContacts = initialSeed.whatsappContacts;
-      modified = true;
-    }
-    if (!data.whatsappDeliveryLogs || !Array.isArray(data.whatsappDeliveryLogs)) {
-      data.whatsappDeliveryLogs = initialSeed.whatsappDeliveryLogs;
-      modified = true;
-    }
-    if (!data.whatsappEvidence || !Array.isArray(data.whatsappEvidence)) {
-      data.whatsappEvidence = initialSeed.whatsappEvidence;
-      modified = true;
-    }
-    if (!data.whatsappChecklist || !Array.isArray(data.whatsappChecklist)) {
-      data.whatsappChecklist = initialSeed.whatsappChecklist;
-      modified = true;
-    }
-    if (!data.auditLogs || !Array.isArray(data.auditLogs)) {
-      data.auditLogs = initialSeed.auditLogs;
-      modified = true;
-    }
-    if (modified) {
-      saveDb(data);
-    }
-    return data;
-  } catch (err) {
-    console.error("DB Read Error:", err);
-    return JSON.parse(JSON.stringify(initialSeed));
-  }
-}
-
-function saveDb(data) {
-  try {
-    const tempFile = `${DB_FILE}.tmp.${Date.now()}`;
-    fs.writeFileSync(tempFile, JSON.stringify(data, null, 2));
-    fs.renameSync(tempFile, DB_FILE);
-  } catch (err) {
-    console.error("DB Write Error:", err);
-  }
-}
 
 // 1. Security Headers via Helmet
 app.use(helmet({
@@ -571,9 +127,15 @@ app.use(express.json({
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // 3. Rate Limiters
+const isRateLimitBypassed = () => {
+  if (process.env.NODE_ENV === 'production') return false;
+  return process.env.NODE_ENV === 'test' || process.env.STAGING === 'true';
+};
+
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // Max 10 attempts
+  max: isRateLimitBypassed() ? 1000 : 10,
+  skip: () => isRateLimitBypassed(),
   message: { success: false, error: "Too many authentication attempts. Please try again in 15 minutes." },
   standardHeaders: true,
   legacyHeaders: false,
@@ -581,32 +143,13 @@ const loginLimiter = rateLimit({
 
 const apiLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
-  max: 120,
-  skip: (req) => req.path.startsWith('/whatsapp/webhook'),
+  max: isRateLimitBypassed() ? 10000 : 120,
+  skip: (req) => isRateLimitBypassed() || req.path.startsWith('/whatsapp/webhook'),
   standardHeaders: true,
   legacyHeaders: false,
 });
 
 app.use('/api/', apiLimiter);
-
-// 4. JWT Authentication Middleware
-function authenticateAdmin(req, res, next) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({ success: false, error: "Access Denied: Missing or invalid authorization header." });
-  }
-
-  const token = authHeader.split(" ")[1];
-  const jwtSecret = process.env.JWT_SECRET || "fallback_super_secret_jwt_key_astitva_2026";
-
-  try {
-    const decoded = jwt.verify(token, jwtSecret);
-    req.admin = decoded;
-    next();
-  } catch (err) {
-    return res.status(401).json({ success: false, error: "Access Denied: Session token expired or invalid." });
-  }
-}
 
 // -------------------------------------------------------------
 // ROUTES
@@ -630,16 +173,17 @@ app.get('/api/health', (req, res) => {
 app.post('/api/auth/login', loginLimiter, async (req, res) => {
   const { username, password } = req.body || {};
 
-  if (!username || !password) {
+  if (typeof username !== "string" || !username.trim() || typeof password !== "string" || !password) {
     return res.status(400).json({ success: false, error: "Username and password are required." });
   }
 
   const configuredUser = process.env.ADMIN_USERNAME || "AST-ADMIN-01";
   const passwordHash = process.env.ADMIN_PASSWORD_HASH;
+  const jwtSecret = process.env.JWT_SECRET;
 
-  if (!passwordHash) {
-    console.error("ADMIN_PASSWORD_HASH not configured in environment!");
-    return res.status(500).json({ success: false, error: "Server authentication configuration missing." });
+  if (!passwordHash || !jwtSecret) {
+    console.error("Administrator authentication is not fully configured.");
+    return res.status(503).json({ success: false, error: "Server authentication configuration missing." });
   }
 
   // Artificial timing protection
@@ -649,12 +193,11 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
     return res.status(401).json({ success: false, error: "Access Denied: Invalid Administrator ID or Password." });
   }
 
-  const isPasswordValid = bcrypt.compareSync(password.trim(), passwordHash);
+  const isPasswordValid = bcrypt.compareSync(password, passwordHash);
   if (!isPasswordValid) {
     return res.status(401).json({ success: false, error: "Access Denied: Invalid Administrator ID or Password." });
   }
 
-  const jwtSecret = process.env.JWT_SECRET || "fallback_super_secret_jwt_key_astitva_2026";
   const token = jwt.sign(
     { username: configuredUser, role: "admin", iss: "astitva-auth" },
     jwtSecret,
@@ -707,7 +250,9 @@ app.post('/api/inquiries', (req, res) => {
   };
 
   db.inquiries.unshift(newInquiry);
-  saveDb(db);
+  if (!saveDb(db)) {
+    return res.status(503).json({ success: false, error: "Database storage unavailable. Inquiry could not be persisted." });
+  }
 
   // Trigger Instant Mobile Notification via Telegram if configured
   const alertText = `🔔 <b>New Project Inquiry Received!</b>\n\n` +
@@ -773,7 +318,9 @@ app.patch('/api/inquiries/:id', authenticateAdmin, (req, res) => {
 
   db.inquiries[index].status = status;
   db.inquiries[index].updatedAt = new Date().toISOString();
-  saveDb(db);
+  if (!saveDb(db)) {
+    return res.status(503).json({ success: false, error: "Database storage unavailable. Status could not be persisted." });
+  }
 
   res.json({ success: true, data: db.inquiries[index] });
 });
@@ -789,7 +336,9 @@ app.delete('/api/inquiries/:id', authenticateAdmin, (req, res) => {
     return res.status(404).json({ success: false, error: "Inquiry not found." });
   }
 
-  saveDb(db);
+  if (!saveDb(db)) {
+    return res.status(503).json({ success: false, error: "Database storage unavailable. Deletion could not be persisted." });
+  }
   res.json({ success: true, message: "Inquiry deleted successfully." });
 });
 
@@ -820,7 +369,9 @@ app.post('/api/fintech/simulate', authenticateAdmin, (req, res) => {
   };
 
   db.fintechLogs.unshift(simulatedLog);
-  saveDb(db);
+  if (!saveDb(db)) {
+    return res.status(503).json({ success: false, error: "Database storage unavailable. Simulation could not be persisted." });
+  }
 
   res.status(201).json({
     success: true,
@@ -848,7 +399,9 @@ app.patch('/api/services/:id', authenticateAdmin, (req, res) => {
   if (startingPrice) service.startingPrice = startingPrice;
   if (turnaround) service.turnaround = turnaround;
 
-  saveDb(db);
+  if (!saveDb(db)) {
+    return res.status(503).json({ success: false, error: "Database storage unavailable. Service updates could not be persisted." });
+  }
   res.json({ success: true, data: service });
 });
 
@@ -880,7 +433,7 @@ app.get('/api/settings/admin', authenticateAdmin, (req, res) => {
   const db = getDb();
   res.json({
     success: true,
-    data: db.settings || initialSeed.settings
+    data: sanitizeAdminSettings(db.settings || initialSeed.settings)
   });
 });
 
@@ -888,13 +441,11 @@ app.get('/api/settings/admin', authenticateAdmin, (req, res) => {
 app.patch('/api/settings', authenticateAdmin, (req, res) => {
   const db = getDb();
   const updates = req.body || {};
-  db.settings = {
-    ...db.settings,
-    ...updates,
-    updatedAt: new Date().toISOString()
-  };
-  saveDb(db);
-  res.json({ success: true, message: "Settings updated successfully", data: db.settings });
+  db.settings = mergeAdminSettings(db.settings || initialSeed.settings, updates);
+  if (!saveDb(db)) {
+    return res.status(503).json({ success: false, error: "Database storage unavailable. Settings could not be persisted." });
+  }
+  res.json({ success: true, message: "Settings updated successfully", data: sanitizeAdminSettings(db.settings) });
 });
 
 // Protected: Test Telegram Alert Dispatch
@@ -956,7 +507,9 @@ app.post('/api/products', authenticateAdmin, (req, res) => {
 
   db.products = db.products || [];
   db.products.push(newProduct);
-  saveDb(db);
+  if (!saveDb(db)) {
+    return res.status(503).json({ success: false, error: "Database storage unavailable. Product could not be persisted." });
+  }
 
   res.status(201).json({ success: true, message: "Product created successfully", data: newProduct });
 });
@@ -976,7 +529,9 @@ app.put('/api/products/:id', authenticateAdmin, (req, res) => {
     id, // protect id
     updatedAt: new Date().toISOString()
   };
-  saveDb(db);
+  if (!saveDb(db)) {
+    return res.status(503).json({ success: false, error: "Database storage unavailable. Product could not be persisted." });
+  }
 
   res.json({ success: true, message: "Product updated successfully", data: db.products[index] });
 });
@@ -990,7 +545,9 @@ app.delete('/api/products/:id', authenticateAdmin, (req, res) => {
   if (db.products.length === initialLength) {
     return res.status(404).json({ success: false, error: "Product not found" });
   }
-  saveDb(db);
+  if (!saveDb(db)) {
+    return res.status(503).json({ success: false, error: "Database storage unavailable. Deletion could not be persisted." });
+  }
   res.json({ success: true, message: "Product deleted successfully" });
 });
 
@@ -1004,7 +561,9 @@ app.patch('/api/products/:id/toggle', authenticateAdmin, (req, res) => {
   }
   prod.status = prod.status === "Active" ? "Inactive" : "Active";
   prod.updatedAt = new Date().toISOString();
-  saveDb(db);
+  if (!saveDb(db)) {
+    return res.status(503).json({ success: false, error: "Database storage unavailable. Status could not be persisted." });
+  }
   res.json({ success: true, data: prod });
 });
 
@@ -1056,7 +615,9 @@ app.post('/api/founders', authenticateAdmin, (req, res) => {
 
   db.founders = db.founders || [];
   db.founders.push(newFounder);
-  saveDb(db);
+  if (!saveDb(db)) {
+    return res.status(503).json({ success: false, error: "Database storage unavailable. Founder could not be persisted." });
+  }
 
   res.status(201).json({ success: true, message: "Founder profile added successfully", data: newFounder });
 });
@@ -1076,7 +637,9 @@ app.put('/api/founders/:id', authenticateAdmin, (req, res) => {
     id,
     updatedAt: new Date().toISOString()
   };
-  saveDb(db);
+  if (!saveDb(db)) {
+    return res.status(503).json({ success: false, error: "Database storage unavailable. Founder could not be persisted." });
+  }
 
   res.json({ success: true, message: "Founder profile updated successfully", data: db.founders[index] });
 });
@@ -1090,7 +653,9 @@ app.delete('/api/founders/:id', authenticateAdmin, (req, res) => {
   if (db.founders.length === initialLength) {
     return res.status(404).json({ success: false, error: "Founder profile not found" });
   }
-  saveDb(db);
+  if (!saveDb(db)) {
+    return res.status(503).json({ success: false, error: "Database storage unavailable. Deletion could not be persisted." });
+  }
   res.json({ success: true, message: "Founder profile removed successfully" });
 });
 
@@ -1104,7 +669,9 @@ app.patch('/api/founders/:id/toggle', authenticateAdmin, (req, res) => {
   }
   founder.enabled = founder.enabled === false ? true : false;
   founder.updatedAt = new Date().toISOString();
-  saveDb(db);
+  if (!saveDb(db)) {
+    return res.status(503).json({ success: false, error: "Database storage unavailable. Status could not be persisted." });
+  }
   res.json({ success: true, data: founder });
 });
 
@@ -1132,7 +699,9 @@ app.post('/api/ai-lead', (req, res) => {
   };
 
   db.inquiries.unshift(newInquiry);
-  saveDb(db);
+  if (!saveDb(db)) {
+    return res.status(503).json({ success: false, error: "Database storage unavailable. Inquiry could not be persisted." });
+  }
 
   // Dispatch instant Telegram notification to mobile phone!
   const alertText = `🤖 <b>HOT LEAD FROM WEBSITE AI AGENT!</b>\n\n` +
@@ -1206,7 +775,9 @@ app.post('/api/jobs/apply', (req, res) => {
 
   db.jobApplications = db.jobApplications || [];
   db.jobApplications.unshift(newApplication);
-  saveDb(db);
+  if (!saveDb(db)) {
+    return res.status(503).json({ success: false, error: "Database storage failure while saving job application." });
+  }
 
   // Instant notification to Admin mobile phone via Telegram
   const alertText = `💼 <b>NEW JOB APPLICATION RECEIVED!</b>\n\n` +
@@ -1263,7 +834,9 @@ app.post('/api/admin/jobs', authenticateAdmin, (req, res) => {
 
   db.jobs = db.jobs || [];
   db.jobs.unshift(newJob);
-  saveDb(db);
+  if (!saveDb(db)) {
+    return res.status(503).json({ success: false, error: "Database storage failure while saving job." });
+  }
 
   res.status(201).json({ success: true, message: "Job position posted successfully", data: newJob });
 });
@@ -1283,7 +856,9 @@ app.put('/api/admin/jobs/:id', authenticateAdmin, (req, res) => {
     id,
     updatedAt: new Date().toISOString()
   };
-  saveDb(db);
+  if (!saveDb(db)) {
+    return res.status(503).json({ success: false, error: "Database storage failure while updating job." });
+  }
 
   res.json({ success: true, message: "Job position updated successfully", data: db.jobs[index] });
 });
@@ -1300,7 +875,9 @@ app.patch('/api/admin/jobs/:id/toggle', authenticateAdmin, (req, res) => {
   job.status = job.status === "Active" ? "Closed" : "Active";
   job.enabled = job.status === "Active";
   job.updatedAt = new Date().toISOString();
-  saveDb(db);
+  if (!saveDb(db)) {
+    return res.status(503).json({ success: false, error: "Database storage failure while updating job status." });
+  }
 
   res.json({ success: true, data: job });
 });
@@ -1314,7 +891,9 @@ app.delete('/api/admin/jobs/:id', authenticateAdmin, (req, res) => {
   if (db.jobs.length === initialLength) {
     return res.status(404).json({ success: false, error: "Job not found" });
   }
-  saveDb(db);
+  if (!saveDb(db)) {
+    return res.status(503).json({ success: false, error: "Database storage failure while deleting job." });
+  }
   res.json({ success: true, message: "Job removed successfully" });
 });
 
@@ -1347,7 +926,9 @@ app.patch('/api/admin/job-applications/:id', authenticateAdmin, (req, res) => {
   if (status) appItem.status = status;
   if (adminNotes !== undefined) appItem.adminNotes = adminNotes;
   appItem.updatedAt = new Date().toISOString();
-  saveDb(db);
+  if (!saveDb(db)) {
+    return res.status(503).json({ success: false, error: "Database storage failure while updating candidate application." });
+  }
 
   res.json({ success: true, message: "Candidate application updated successfully", data: appItem });
 });
@@ -1361,7 +942,9 @@ app.delete('/api/admin/job-applications/:id', authenticateAdmin, (req, res) => {
   if (db.jobApplications.length === initialLength) {
     return res.status(404).json({ success: false, error: "Application not found" });
   }
-  saveDb(db);
+  if (!saveDb(db)) {
+    return res.status(503).json({ success: false, error: "Database storage failure while deleting candidate application." });
+  }
   res.json({ success: true, message: "Application deleted successfully" });
 });
 
@@ -1384,82 +967,19 @@ app.get('/api/server/status', authenticateAdmin, (req, res) => {
 });
 
 // Meta / Facebook User Data Deletion Callback Endpoint
-// Complies with Meta Platform Terms & App Review requirements for User Data Deletion
-app.post(['/api/auth/data-deletion', '/api/whatsapp/data-deletion'], (req, res) => {
-  const signedRequest = req.body?.signed_request;
-  const db = getDb();
-  const appSecret = process.env.WHATSAPP_APP_SECRET || db.whatsappConfig?.appSecret || '';
-  const confirmationCode = `DEL-${Date.now()}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
-  const timestamp = new Date().toISOString();
-
-  let userId = 'anonymous';
-
-  if (signedRequest && appSecret) {
-    try {
-      const parts = signedRequest.split('.');
-      const encodedSig = parts[0];
-      const encodedData = parts[1];
-
-      const sig = Buffer.from(encodedSig.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
-      const dataStr = Buffer.from(encodedData.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
-      const data = JSON.parse(dataStr);
-
-      const expectedSig = crypto.createHmac('sha256', appSecret).update(encodedData).digest();
-      if (crypto.timingSafeEqual(sig, expectedSig)) {
-        userId = data.user_id || userId;
-      }
-    } catch (parseErr) {
-      console.warn('[Data Deletion] Failed to parse signed_request:', parseErr.message);
-    }
-  }
-
-  // Record deletion audit entry
-  if (!Array.isArray(db.auditLogs)) db.auditLogs = [];
-  db.auditLogs.unshift({
-    id: `AUD-DEL-${Date.now()}`,
-    timestamp,
-    actor: 'META_DATA_DELETION_CALLBACK',
-    action: 'USER_DATA_DELETION_REQUESTED',
-    details: {
-      userId,
-      confirmationCode,
-      remoteIp: req.ip || req.connection?.remoteAddress
-    }
-  });
-
-  // Purge any matching test contacts or conversations
-  if (Array.isArray(db.whatsappContacts)) {
-    db.whatsappContacts = db.whatsappContacts.filter(c => c.phone !== userId && c.id !== userId);
-  }
-  saveDb(db);
-
-  const statusUrl = `https://astitvainnovation.in/api/auth/data-deletion-status?code=${encodeURIComponent(confirmationCode)}`;
-
-  res.json({
-    url: statusUrl,
-    confirmation_code: confirmationCode
-  });
-});
-
-app.get(['/api/auth/data-deletion-status', '/api/auth/data-deletion-status/:id'], (req, res) => {
-  const code = req.query?.code || req.params?.id || 'CONFIRMED';
-  res.json({
-    success: true,
-    status: 'COMPLETED',
-    confirmationCode: code,
-    message: 'All associated Meta user data, message logs, and contact identifiers have been permanently expunged in accordance with Astitva Innovation Privacy Policy.',
-    timestamp: new Date().toISOString(),
-    organization: 'Astitva Innovation',
-    privacyEmail: 'privacy@astitvainnovation.in'
-  });
-});
+app.use('/api', createMetaDataDeletionRouter({ getDb, saveDb }));
 
 // WhatsApp Business Platform API Management Subsystem
 const createWhatsAppRouter = require('./whatsapp/whatsappRoutes');
 app.use('/api/whatsapp', createWhatsAppRouter({ getDb, saveDb, authenticateAdmin }));
 
-// Start Server
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`[Astitva API Server] Running on http://0.0.0.0:${PORT}`);
-  console.log(`[Astitva API Server] Allowed origins: ${allowedOrigins.join(', ')}`);
-});
+// Start Server if executed directly
+let serverInstance = null;
+if (require.main === module) {
+  serverInstance = app.listen(PORT, '0.0.0.0', () => {
+    console.log(`[Astitva API Server] Running on http://0.0.0.0:${PORT}`);
+    console.log(`[Astitva API Server] Allowed origins: ${allowedOrigins.join(', ')}`);
+  });
+}
+
+module.exports = { app, getDb, saveDb, initialSeed, serverInstance };

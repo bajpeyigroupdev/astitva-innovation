@@ -255,7 +255,7 @@ export const CareersPage = () => {
           variant: "destructive"
         });
       }
-    } catch (e: any) {
+    } catch (e) {
       toast({
         title: "Submission Error",
         description: "Network connection error. You can also email your CV to contact@astitvainnovation.in.",

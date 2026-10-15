@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   MessageSquare,
+  ShieldCheck,
   Send,
   Phone,
   Check,
@@ -45,7 +46,9 @@ import {
   Info,
   Globe,
   Smartphone,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Building2,
+  Plus
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -60,6 +63,9 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 
 import { whatsappService } from "../services/whatsappService";
+import { getErrorMessage } from "../lib/errors";
+import type { WhatsAppOperationResult } from "../services/whatsappService";
+import { normalizeWhatsAppTab } from "../constants/whatsappTabs";
 import {
   WhatsAppConfig,
   WhatsAppConversation,
@@ -75,6 +81,7 @@ import {
   WhatsAppHealthCheck,
   WhatsAppErrorGuide,
   WhatsAppSecurityPosture,
+  WhatsAppTenant,
 } from "../types/whatsapp";
 
 const EVIDENCE_CATEGORIES = [
@@ -94,17 +101,9 @@ const EVIDENCE_CATEGORIES = [
 
 export const WhatsAppPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const rawTab = searchParams.get("tab") || "overview";
-
-  // Normalize tab aliases
-  const normalizeTab = (t: string) => {
-    if (t === "messages") return "chats";
-    if (t === "account") return "connection";
-    if (t === "settings") return "connection";
-    if (t === "logs") return "diagnostics";
-    return t;
-  };
-  const activeTab = normalizeTab(rawTab);
+  const rawTab = searchParams.get("tab");
+  const normalizedTab = normalizeWhatsAppTab(rawTab);
+  const activeTab = normalizedTab || "overview";
 
   const { toast } = useToast();
 
@@ -136,7 +135,7 @@ export const WhatsAppPage: React.FC = () => {
   const [syncing, setSyncing] = useState<boolean>(false);
   const [testingHealth, setTestingHealth] = useState<boolean>(false);
   const [sendingMsg, setSendingMsg] = useState<boolean>(false);
-  const [connectivityResult, setConnectivityResult] = useState<any>(null);
+  const [connectivityResult, setConnectivityResult] = useState<WhatsAppOperationResult | null>(null);
 
   // Chat State
   const [chatInput, setChatInput] = useState<string>("");
@@ -196,7 +195,7 @@ export const WhatsAppPage: React.FC = () => {
   const [recordingSeconds, setRecordingSeconds] = useState<number>(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
-  const recordingTimerRef = useRef<any>(null);
+  const recordingTimerRef = useRef<ReturnType<typeof window.setInterval> | null>(null);
 
   // Connection Settings Form State
   const [settingsToken, setSettingsToken] = useState<string>("");
@@ -210,20 +209,68 @@ export const WhatsAppPage: React.FC = () => {
   const [savingSettings, setSavingSettings] = useState<boolean>(false);
 
   // Webhook Test Challenge State
-  const [webhookTestResult, setWebhookTestResult] = useState<any>(null);
+  const [webhookTestResult, setWebhookTestResult] = useState<WhatsAppOperationResult | null>(null);
   const [testingWebhook, setTestingWebhook] = useState<boolean>(false);
 
   // Payload Inspector Drawer
-  const [inspectedPayload, setInspectedPayload] = useState<{ title: string; data: any } | null>(null);
+  const [inspectedPayload, setInspectedPayload] = useState<{ title: string; data: unknown } | null>(null);
+
+  // Tenant State
+  const [tenants, setTenants] = useState<WhatsAppTenant[]>([]);
+  const [activeTenantId, setActiveTenantId] = useState<string>("default");
+  const [isOnboardModalOpen, setIsOnboardModalOpen] = useState<boolean>(false);
+  const [newTenantName, setNewTenantName] = useState<string>("");
+  const [newTenantClient, setNewTenantClient] = useState<string>("");
+  const [newTenantEmail, setNewTenantEmail] = useState<string>("");
+  const [newTenantWabaId, setNewTenantWabaId] = useState<string>("");
+  const [newTenantPhoneId, setNewTenantPhoneId] = useState<string>("");
+  const [newTenantPhone, setNewTenantPhone] = useState<string>("");
+  const [creatingTenant, setCreatingTenant] = useState<boolean>(false);
+
+  // Embedded Signup Modal & Launch State
+  const [isEmbeddedSignupModalOpen, setIsEmbeddedSignupModalOpen] = useState<boolean>(false);
+  const [signupCodeInput, setSignupCodeInput] = useState<string>("");
+  const [signupWabaIdInput, setSignupWabaIdInput] = useState<string>("");
+  const [signupPhoneIdInput, setSignupPhoneIdInput] = useState<string>("");
+  const [signupTenantNameInput, setSignupTenantNameInput] = useState<string>("");
+  const [exchangingCode, setExchangingCode] = useState<boolean>(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const handleTabChange = (val: string) => {
-    setSearchParams({ tab: val });
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set("tab", val);
+      return next;
+    });
   };
 
+  useEffect(() => {
+    if (!rawTab) {
+      setSearchParams((current) => {
+        const next = new URLSearchParams(current);
+        next.set("tab", "overview");
+        return next;
+      }, { replace: true });
+      return;
+    }
+
+    if (rawTab !== normalizedTab) {
+      setSearchParams((current) => {
+        const next = new URLSearchParams(current);
+        next.set("tab", normalizedTab || "overview");
+        return next;
+      }, { replace: true });
+    }
+  }, [normalizedTab, rawTab, setSearchParams]);
+
   // Initial Data Fetch
-  const loadInitialData = async () => {
+  const selectedConvoIdRef = useRef(selectedConvoId);
+  useEffect(() => {
+    selectedConvoIdRef.current = selectedConvoId;
+  }, [selectedConvoId]);
+
+  const loadInitialData = useCallback(async () => {
     setLoading(true);
     try {
       const [
@@ -241,6 +288,7 @@ export const WhatsAppPage: React.FC = () => {
         audit,
         sec,
         errs,
+        tenantsRes,
       ] = await Promise.all([
         whatsappService.getConfig().catch(() => null),
         whatsappService.getHealthCheck().catch(() => null),
@@ -256,6 +304,7 @@ export const WhatsAppPage: React.FC = () => {
         whatsappService.getAuditLogs().catch(() => []),
         whatsappService.getSecurityPosture().catch(() => null),
         whatsappService.getErrorDictionary().catch(() => []),
+        whatsappService.getTenants().catch(() => ({ success: true, activeTenantId: "default", data: [] })),
       ]);
 
       if (cfg) {
@@ -267,8 +316,12 @@ export const WhatsAppPage: React.FC = () => {
         setSettingsDisplayName(cfg.displayName || "");
       }
       if (hlth) setHealthCheck(hlth);
+      if (tenantsRes?.data) {
+        setTenants(tenantsRes.data);
+        setActiveTenantId(tenantsRes.activeTenantId || "default");
+      }
       setConversations(convos || []);
-      if (convos && convos.length > 0 && !selectedConvoId) {
+      if (convos && convos.length > 0 && !selectedConvoIdRef.current) {
         setSelectedConvoId(convos[0].id);
       }
       setMessages(msgsRes?.data || []);
@@ -290,21 +343,21 @@ export const WhatsAppPage: React.FC = () => {
       setAuditLogs(audit || []);
       setSecurityPosture(sec);
       setErrorDictionary(errs || []);
-    } catch (err: any) {
+    } catch (err) {
       console.error("Failed to load WhatsApp Platform data:", err);
       toast({
         variant: "destructive",
         title: "Synchronization Issue",
-        description: err.message || "Could not fetch platform data.",
+        description: getErrorMessage(err, "Could not fetch platform data."),
       });
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
-    loadInitialData();
-  }, []);
+    void loadInitialData();
+  }, [loadInitialData]);
 
   // Poll for conversation & message updates every 8 seconds
   useEffect(() => {
@@ -319,7 +372,7 @@ export const WhatsAppPage: React.FC = () => {
         if (convos) setConversations(convos);
         if (msgsRes?.data) setMessages(msgsRes.data);
       } catch (e) {
-        // silent polling catch
+        console.warn("WhatsApp conversation polling failed:", e);
       }
     }, 8000);
     return () => clearInterval(interval);
@@ -354,11 +407,11 @@ export const WhatsAppPage: React.FC = () => {
         title: `Health Check: ${result.overallStatus.toUpperCase()}`,
         description: `API Authentication: ${result.stages.apiAuthentication.status} • Phone: ${result.stages.phoneNumberAccessible.status}`,
       });
-    } catch (err: any) {
+    } catch (err) {
       toast({
         variant: "destructive",
         title: "Health Check Failed",
-        description: err.message || "Failed to execute API health check.",
+        description: getErrorMessage(err, "Failed to execute API health check."),
       });
     } finally {
       setTestingHealth(false);
@@ -374,11 +427,11 @@ export const WhatsAppPage: React.FC = () => {
         title: res.success ? "Connectivity Verified" : "Connectivity Issue",
         description: `Status: HTTP ${res.status} (Latency: ${res.latencyMs}ms)`,
       });
-    } catch (err: any) {
+    } catch (err) {
       toast({
         variant: "destructive",
         title: "Connectivity Check Error",
-        description: err.message || "Failed to reach Meta Cloud API.",
+        description: getErrorMessage(err, "Failed to reach Meta Cloud API."),
       });
     }
   };
@@ -394,11 +447,11 @@ export const WhatsAppPage: React.FC = () => {
         description: `Verified Display Name: ${res.data.displayName} • Quality: ${res.data.qualityRating}`,
       });
       loadInitialData();
-    } catch (err: any) {
+    } catch (err) {
       toast({
         variant: "destructive",
         title: "Sync Failed",
-        description: err.message || "Failed to synchronize with Meta Graph API.",
+        description: getErrorMessage(err, "Failed to synchronize with Meta Graph API."),
       });
     } finally {
       setSyncing(false);
@@ -410,7 +463,16 @@ export const WhatsAppPage: React.FC = () => {
     e.preventDefault();
     setSavingSettings(true);
     try {
-      const payload: any = {
+      const payload: {
+        wabaId: string;
+        phoneNumberId: string;
+        appId: string;
+        businessPhoneNumber: string;
+        displayName: string;
+        token?: string;
+        appSecret?: string;
+        verifyToken?: string;
+      } = {
         wabaId: settingsWabaId,
         phoneNumberId: settingsPhoneId,
         appId: settingsAppId,
@@ -429,14 +491,147 @@ export const WhatsAppPage: React.FC = () => {
       setSettingsToken("");
       setSettingsAppSecret("");
       loadInitialData();
-    } catch (err: any) {
+    } catch (err) {
       toast({
         variant: "destructive",
         title: "Save Failed",
-        description: err.message || "Failed to update configuration.",
+        description: getErrorMessage(err, "Failed to update configuration."),
       });
     } finally {
       setSavingSettings(false);
+    }
+  };
+
+  // Tenant Handlers
+  const handleSwitchTenant = async (id: string) => {
+    try {
+      const res = await whatsappService.activateTenant(id);
+      setActiveTenantId(res.activeTenantId);
+      toast({
+        title: "Active Tenant Switched",
+        description: res.message || `Switched context to tenant ${id}`,
+      });
+      loadInitialData();
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Failed to switch tenant",
+        description: getErrorMessage(err, "Unable to switch tenant context"),
+      });
+    }
+  };
+
+  const handleCreateTenant = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTenantName.trim()) {
+      toast({ variant: "destructive", title: "Validation Error", description: "Tenant organization name is required." });
+      return;
+    }
+    setCreatingTenant(true);
+    try {
+      await whatsappService.createTenant({
+        name: newTenantName.trim(),
+        clientName: newTenantClient.trim() || newTenantName.trim(),
+        clientEmail: newTenantEmail.trim(),
+        wabaId: newTenantWabaId.trim(),
+        phoneNumberId: newTenantPhoneId.trim(),
+        businessPhoneNumber: newTenantPhone.trim(),
+      });
+      toast({
+        title: "Client Onboarded",
+        description: `Tenant organization "${newTenantName}" registered successfully with isolated credentials.`,
+      });
+      setIsOnboardModalOpen(false);
+      setNewTenantName("");
+      setNewTenantClient("");
+      setNewTenantEmail("");
+      setNewTenantWabaId("");
+      setNewTenantPhoneId("");
+      setNewTenantPhone("");
+      loadInitialData();
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Onboarding Failed",
+        description: getErrorMessage(err, "Could not register new client tenant."),
+      });
+    } finally {
+      setCreatingTenant(false);
+    }
+  };
+
+  const handleDeleteTenant = async (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to remove client organization "${name}"? Isolated credentials will be deleted.`)) return;
+    try {
+      await whatsappService.deleteTenant(id);
+      toast({ title: "Tenant Removed", description: `Organization "${name}" removed.` });
+      loadInitialData();
+    } catch (err) {
+      toast({ variant: "destructive", title: "Deletion Failed", description: getErrorMessage(err, "Failed to delete tenant.") });
+    }
+  };
+
+  const handleExchangeEmbeddedSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!signupCodeInput.trim()) {
+      toast({ variant: "destructive", title: "Validation Error", description: "OAuth authorization code is required." });
+      return;
+    }
+    setExchangingCode(true);
+    try {
+      const res = await whatsappService.exchangeEmbeddedSignup({
+        code: signupCodeInput.trim(),
+        wabaId: signupWabaIdInput.trim() || undefined,
+        phoneNumberId: signupPhoneIdInput.trim() || undefined,
+        tenantName: signupTenantNameInput.trim() || undefined,
+      });
+      toast({
+        title: "Meta OAuth Exchange Succeeded",
+        description: res.message || "Meta authorization received. Sync account to complete verification.",
+      });
+      setIsEmbeddedSignupModalOpen(false);
+      setSignupCodeInput("");
+      setSignupWabaIdInput("");
+      setSignupPhoneIdInput("");
+      setSignupTenantNameInput("");
+      loadInitialData();
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Exchange Failed",
+        description: getErrorMessage(err, "Failed to exchange OAuth code with Meta."),
+      });
+    } finally {
+      setExchangingCode(false);
+    }
+  };
+
+  const handleLaunchMetaSignup = () => {
+    const w = window as unknown as { FB?: { login: (cb: (response: unknown) => void, opts: unknown) => void } };
+    if (w.FB && typeof w.FB.login === "function" && config?.appId) {
+      w.FB.login(
+        (response: unknown) => {
+          const res = response as { authResponse?: { code?: string } };
+          if (res?.authResponse?.code) {
+            setSignupCodeInput(res.authResponse.code);
+            setIsEmbeddedSignupModalOpen(true);
+          } else {
+            setIsEmbeddedSignupModalOpen(true);
+          }
+        },
+        {
+          config_id: config.embeddedSignup?.configId || undefined,
+          response_type: "code",
+          override_default_response_type: true,
+          extras: {
+            setup: {},
+            featureType: "",
+            sessionInfoVersion: "2",
+          },
+        }
+      );
+    } else {
+      setIsEmbeddedSignupModalOpen(true);
     }
   };
 
@@ -460,11 +655,12 @@ export const WhatsAppPage: React.FC = () => {
       setMessages(updatedMsgs.data);
       const updatedConvos = await whatsappService.getConversations();
       setConversations(updatedConvos);
-    } catch (err: any) {
+    } catch (err) {
+      const optedOut = typeof err === "object" && err !== null && "optedOut" in err && err.optedOut === true;
       toast({
         variant: "destructive",
-        title: err.optedOut ? "Recipient Suppressed" : "Dispatch Failed",
-        description: err.message || "Could not send message.",
+        title: optedOut ? "Recipient Suppressed" : "Dispatch Failed",
+        description: getErrorMessage(err, "Could not send message."),
       });
     } finally {
       setSendingMsg(false);
@@ -489,11 +685,11 @@ export const WhatsAppPage: React.FC = () => {
       });
       setIsTestMessageOpen(false);
       loadInitialData();
-    } catch (err: any) {
+    } catch (err) {
       toast({
         variant: "destructive",
         title: "Test Message Failed",
-        description: err.message || "Failed to send test message.",
+        description: getErrorMessage(err, "Failed to send test message."),
       });
     } finally {
       setSendingTest(false);
@@ -509,11 +705,11 @@ export const WhatsAppPage: React.FC = () => {
         title: "Templates Synchronized",
         description: `Loaded ${res.count} templates directly from Meta Cloud API.`,
       });
-    } catch (err: any) {
+    } catch (err) {
       toast({
         variant: "destructive",
         title: "Template Sync Failed",
-        description: err.message || "Failed to fetch approved templates from Meta.",
+        description: getErrorMessage(err, "Failed to fetch approved templates from Meta."),
       });
     }
   };
@@ -530,8 +726,8 @@ export const WhatsAppPage: React.FC = () => {
       return;
     }
 
-    const components: any[] = [];
-    const params: any[] = [];
+    const components: unknown[] = [];
+    const params: Array<{ type: "text"; text: string }> = [];
     if (templateVar1.trim()) params.push({ type: "text", text: templateVar1.trim() });
     if (templateVar2.trim()) params.push({ type: "text", text: templateVar2.trim() });
     if (templateVar3.trim()) params.push({ type: "text", text: templateVar3.trim() });
@@ -558,11 +754,11 @@ export const WhatsAppPage: React.FC = () => {
       setTemplateVar2("");
       setTemplateVar3("");
       loadInitialData();
-    } catch (err: any) {
+    } catch (err) {
       toast({
         variant: "destructive",
         title: "Template Dispatch Failed",
-        description: err.message || "Failed to dispatch template message.",
+        description: getErrorMessage(err, "Failed to dispatch template message."),
       });
     }
   };
@@ -579,7 +775,7 @@ export const WhatsAppPage: React.FC = () => {
       return;
     }
 
-    const components: any[] = [
+    const components: Array<{ type: "BODY" | "FOOTER"; text: string }> = [
       {
         type: "BODY",
         text: newTemplateBody.trim(),
@@ -607,11 +803,11 @@ export const WhatsAppPage: React.FC = () => {
       setNewTemplateName("");
       setNewTemplateBody("");
       handleSyncTemplates();
-    } catch (err: any) {
+    } catch (err) {
       toast({
         variant: "destructive",
         title: "Template Submission Failed",
-        description: err.message || "Could not submit template to Meta.",
+        description: getErrorMessage(err, "Could not submit template to Meta."),
       });
     }
   };
@@ -639,11 +835,11 @@ export const WhatsAppPage: React.FC = () => {
       setContactNotes("");
       const res = await whatsappService.getContacts();
       setContacts(res.data);
-    } catch (err: any) {
+    } catch (err) {
       toast({
         variant: "destructive",
         title: "Failed to Add Contact",
-        description: err.message || "Could not create contact.",
+        description: getErrorMessage(err, "Could not create contact."),
       });
     }
   };
@@ -660,8 +856,8 @@ export const WhatsAppPage: React.FC = () => {
       }
       const res = await whatsappService.getContacts();
       setContacts(res.data);
-    } catch (err: any) {
-      toast({ variant: "destructive", title: "Action Failed", description: err.message });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Action Failed", description: getErrorMessage(err, "Could not update contact.") });
     }
   };
 
@@ -673,8 +869,8 @@ export const WhatsAppPage: React.FC = () => {
       toast({ title: "Contact Removed", description: "Record removed from database." });
       const res = await whatsappService.getContacts();
       setContacts(res.data);
-    } catch (err: any) {
-      toast({ variant: "destructive", title: "Failed to Delete", description: err.message });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Failed to Delete", description: getErrorMessage(err, "Could not delete contact.") });
     }
   };
 
@@ -688,8 +884,8 @@ export const WhatsAppPage: React.FC = () => {
         title: res.success ? "Webhook Challenge Verified" : "Challenge Check Failed",
         description: res.success ? "Verify token and HMAC validation verified successfully." : "Please verify your verifyToken in settings.",
       });
-    } catch (err: any) {
-      toast({ variant: "destructive", title: "Webhook Test Error", description: err.message });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Webhook Test Error", description: getErrorMessage(err, "Webhook verification failed.") });
     } finally {
       setTestingWebhook(false);
     }
@@ -727,16 +923,16 @@ export const WhatsAppPage: React.FC = () => {
           setEvidenceNotes("");
           const updated = await whatsappService.getEvidence();
           setEvidenceList(updated);
-        } catch (err: any) {
-          toast({ variant: "destructive", title: "Upload Failed", description: err.message });
+        } catch (err) {
+          toast({ variant: "destructive", title: "Upload Failed", description: getErrorMessage(err, "Evidence upload failed.") });
         } finally {
           setUploadingEvidence(false);
         }
       };
       reader.readAsDataURL(evidenceFile);
-    } catch (err: any) {
+    } catch (err) {
       setUploadingEvidence(false);
-      toast({ variant: "destructive", title: "File Read Error", description: err.message });
+      toast({ variant: "destructive", title: "File Read Error", description: getErrorMessage(err, "Could not read the selected file.") });
     }
   };
 
@@ -748,8 +944,8 @@ export const WhatsAppPage: React.FC = () => {
       toast({ title: "Evidence Deleted", description: "File and record removed." });
       const updated = await whatsappService.getEvidence();
       setEvidenceList(updated);
-    } catch (err: any) {
-      toast({ variant: "destructive", title: "Deletion Failed", description: err.message });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Deletion Failed", description: getErrorMessage(err, "Evidence deletion failed.") });
     }
   };
 
@@ -801,12 +997,12 @@ export const WhatsAppPage: React.FC = () => {
         title: "Screen Recording Started",
         description: "Capturing your screen. Demonstrate the WhatsApp workflow and click Stop when finished.",
       });
-    } catch (err: any) {
+    } catch (err) {
       console.warn("Screen recording error:", err);
       toast({
         variant: "destructive",
         title: "Screen Recording Cancelled or Unsupported",
-        description: err.message || "Please use OBS or Quicktime to record your screencast and upload the MP4/WEBM file below.",
+        description: getErrorMessage(err, "Please use OBS or Quicktime to record your screencast and upload the MP4/WEBM file below."),
       });
     }
   };
@@ -833,8 +1029,8 @@ export const WhatsAppPage: React.FC = () => {
         title: "Verification Scan Completed",
         description: `${passed} of ${updated.length} App Review prerequisites verified.`,
       });
-    } catch (err: any) {
-      toast({ variant: "destructive", title: "Scan Failed", description: err.message });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Scan Failed", description: getErrorMessage(err, "Checklist scan failed.") });
     }
   };
 
@@ -846,8 +1042,8 @@ export const WhatsAppPage: React.FC = () => {
         notes: item.notes || "Audited and verified by system administrator.",
       });
       handleRunChecklistScan();
-    } catch (err: any) {
-      toast({ variant: "destructive", title: "Update Failed", description: err.message });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Update Failed", description: getErrorMessage(err, "Checklist update failed.") });
     }
   };
 
@@ -866,8 +1062,8 @@ export const WhatsAppPage: React.FC = () => {
         title: "Dossier Exported",
         description: "Markdown compliance report downloaded successfully.",
       });
-    } catch (err: any) {
-      toast({ variant: "destructive", title: "Export Failed", description: err.message });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Export Failed", description: getErrorMessage(err, "Checklist export failed.") });
     }
   };
 
@@ -985,37 +1181,37 @@ export const WhatsAppPage: React.FC = () => {
       {/* 11 Main Navigation Modules Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
         <TabsList className="bg-card/70 border border-border/60 p-1.5 rounded-2xl flex flex-wrap gap-1 w-full max-w-full overflow-x-auto justify-start h-auto shadow-sm">
-          <TabsTrigger value="overview" className="text-xs px-3.5 py-2 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md">
+          <TabsTrigger value="overview" onClick={() => handleTabChange("overview")} className="text-xs px-3.5 py-2 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md">
             <Activity className="w-3.5 h-3.5 mr-1.5" /> 1. Overview
           </TabsTrigger>
-          <TabsTrigger value="connection" className="text-xs px-3.5 py-2 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md">
+          <TabsTrigger value="connection" onClick={() => handleTabChange("connection")} className="text-xs px-3.5 py-2 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md">
             <Key className="w-3.5 h-3.5 mr-1.5" /> 2. Connection & Config
           </TabsTrigger>
-          <TabsTrigger value="chats" className="text-xs px-3.5 py-2 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md">
+          <TabsTrigger value="chats" onClick={() => handleTabChange("chats")} className="text-xs px-3.5 py-2 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md">
             <MessageSquare className="w-3.5 h-3.5 mr-1.5" /> 3. Chats / Messages
           </TabsTrigger>
-          <TabsTrigger value="templates" className="text-xs px-3.5 py-2 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md">
+          <TabsTrigger value="templates" onClick={() => handleTabChange("templates")} className="text-xs px-3.5 py-2 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md">
             <FileText className="w-3.5 h-3.5 mr-1.5" /> 4. Message Templates ({templates.length})
           </TabsTrigger>
-          <TabsTrigger value="contacts" className="text-xs px-3.5 py-2 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md">
+          <TabsTrigger value="contacts" onClick={() => handleTabChange("contacts")} className="text-xs px-3.5 py-2 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md">
             <UserCheck className="w-3.5 h-3.5 mr-1.5" /> 5. Contacts & Opt-in ({contacts.length})
           </TabsTrigger>
-          <TabsTrigger value="webhooks" className="text-xs px-3.5 py-2 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md">
+          <TabsTrigger value="webhooks" onClick={() => handleTabChange("webhooks")} className="text-xs px-3.5 py-2 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md">
             <Zap className="w-3.5 h-3.5 mr-1.5" /> 6. Webhooks & Events ({webhookLogs.length})
           </TabsTrigger>
-          <TabsTrigger value="delivery-logs" className="text-xs px-3.5 py-2 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md">
+          <TabsTrigger value="delivery-logs" onClick={() => handleTabChange("delivery-logs")} className="text-xs px-3.5 py-2 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md">
             <ListOrdered className="w-3.5 h-3.5 mr-1.5" /> 7. Delivery Logs ({deliveryLogs.length})
           </TabsTrigger>
-          <TabsTrigger value="evidence" className="text-xs px-3.5 py-2 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md">
+          <TabsTrigger value="evidence" onClick={() => handleTabChange("evidence")} className="text-xs px-3.5 py-2 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md">
             <Camera className="w-3.5 h-3.5 mr-1.5" /> 8. Evidence & Screencast ({evidenceList.length})
           </TabsTrigger>
-          <TabsTrigger value="checklist" className="text-xs px-3.5 py-2 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md">
+          <TabsTrigger value="checklist" onClick={() => handleTabChange("checklist")} className="text-xs px-3.5 py-2 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md">
             <FileCheck className="w-3.5 h-3.5 mr-1.5" /> 9. App Review Checklist ({checklistSummary.verifiedCount}/{checklistSummary.total})
           </TabsTrigger>
-          <TabsTrigger value="diagnostics" className="text-xs px-3.5 py-2 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md">
+          <TabsTrigger value="diagnostics" onClick={() => handleTabChange("diagnostics")} className="text-xs px-3.5 py-2 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md">
             <Layers className="w-3.5 h-3.5 mr-1.5" /> 10. Diagnostics & API Logs ({apiLogs.length})
           </TabsTrigger>
-          <TabsTrigger value="security" className="text-xs px-3.5 py-2 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md">
+          <TabsTrigger value="security" onClick={() => handleTabChange("security")} className="text-xs px-3.5 py-2 rounded-xl data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-md">
             <Shield className="w-3.5 h-3.5 mr-1.5" /> 11. Security & RBAC
           </TabsTrigger>
         </TabsList>
@@ -1060,9 +1256,9 @@ export const WhatsAppPage: React.FC = () => {
               <CardHeader className="p-4 pb-2">
                 <CardDescription className="text-xs font-medium">Phone Quality & Tier</CardDescription>
                 <CardTitle className="text-2xl font-bold flex items-center justify-between">
-                  <span className="text-emerald-400">{config?.qualityRating || "GREEN"}</span>
+                  <span className="text-emerald-400">{config?.qualityRating || "UNKNOWN"}</span>
                   <Badge variant="outline" className="text-[10px] font-mono border-border">
-                    {config?.messagingLimitTier || "TIER_1K"}
+                    {config?.messagingLimitTier || "UNKNOWN"}
                   </Badge>
                 </CardTitle>
               </CardHeader>
@@ -1262,6 +1458,182 @@ export const WhatsAppPage: React.FC = () => {
         {/* MODULE 2: CONNECTION & CONFIGURATION                                      */}
         {/* ========================================================================= */}
         <TabsContent value="connection" className="space-y-6">
+          {/* Card A: Meta Embedded Signup & Onboarding */}
+          <Card className="bg-card/60 border-border/70 shadow-lg overflow-hidden">
+            <CardHeader className="p-5 border-b border-border/60 bg-gradient-to-r from-primary/10 via-background/40 to-transparent">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <CardTitle className="text-base font-bold flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-primary" />
+                    Meta Embedded Signup &amp; Client Onboarding
+                  </CardTitle>
+                  <CardDescription className="text-xs mt-1">
+                    Onboard client WhatsApp Business Accounts via official Meta OAuth or Embedded Signup. Existing numbers are protected from deregistration.
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    onClick={handleLaunchMetaSignup}
+                    className="text-xs bg-primary hover:bg-primary/90 text-white font-semibold shadow-md"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
+                    Launch Meta Embedded Signup
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsEmbeddedSignupModalOpen(true)}
+                    className="text-xs"
+                  >
+                    <Key className="w-3.5 h-3.5 mr-1.5 text-primary" />
+                    Manual OAuth Code Exchange
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-5 space-y-4">
+              {/* Meta Permissions Matrix */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div className="p-3 rounded-xl bg-background/60 border border-border/60 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold">Embedded Signup Code</span>
+                    <Badge variant="outline" className="text-[10px] border-emerald-500/40 bg-emerald-500/10 text-emerald-400">
+                      Implemented
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">Admin panel exchanges authorization code via Cloud API v20.0</p>
+                </div>
+                <div className="p-3 rounded-xl bg-background/60 border border-border/60 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold">whatsapp_business_management</span>
+                    <Badge variant="outline" className="text-[10px] border-amber-500/40 bg-amber-500/10 text-amber-400">
+                      Pending Meta Review
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">Advanced Access permission pending App Review submission</p>
+                </div>
+                <div className="p-3 rounded-xl bg-background/60 border border-border/60 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold">whatsapp_business_messaging</span>
+                    <Badge variant="outline" className="text-[10px] border-amber-500/40 bg-amber-500/10 text-amber-400">
+                      Pending Meta Review
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">Message dispatch permission pending App Review submission</p>
+                </div>
+                <div className="p-3 rounded-xl bg-background/60 border border-border/60 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold">Business Verification</span>
+                    <Badge variant="outline" className="text-[10px] border-blue-500/40 bg-blue-500/10 text-blue-400">
+                      Meta Suite Flow
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">Requires legal business documents verified in Meta Business Suite</p>
+                </div>
+              </div>
+
+              {/* Protection Notice */}
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 shrink-0 text-amber-400" />
+                <span>
+                  <strong>Safety Commitment:</strong> The system never disconnects, migrates, or deregisters existing registered WhatsApp numbers automatically during onboarding or tenant switching.
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Card B: Tenant Isolation & Client Management */}
+          <Card className="bg-card/60 border-border/70 shadow-lg">
+            <CardHeader className="p-5 border-b border-border/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <CardTitle className="text-base font-bold flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-primary" />
+                  Tenant Isolation &amp; Client Management ({tenants.length})
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Maintain isolated WhatsApp credentials, contacts, and delivery records per client organization.
+                </CardDescription>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setIsOnboardModalOpen(true)}
+                className="text-xs shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5 mr-1.5 text-primary" />
+                Onboard Client Organization
+              </Button>
+            </CardHeader>
+            <CardContent className="p-5 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {tenants.map((t) => {
+                  const isActive = t.id === activeTenantId;
+                  return (
+                    <div
+                      key={t.id}
+                      className={`p-4 rounded-2xl border transition-all ${
+                        isActive
+                          ? "border-primary/60 bg-primary/10 shadow-md ring-1 ring-primary/40"
+                          : "border-border/60 bg-background/50 hover:bg-background/80"
+                      } space-y-2.5`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="font-semibold text-xs flex items-center gap-1.5">
+                          <Building2 className="w-3.5 h-3.5 text-primary" />
+                          <span>{t.name}</span>
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className={`text-[9px] font-mono ${
+                            isActive
+                              ? "border-primary/50 bg-primary/20 text-primary"
+                              : "border-border text-muted-foreground"
+                          }`}
+                        >
+                          {isActive ? "ACTIVE TENANT" : t.status}
+                        </Badge>
+                      </div>
+                      <div className="text-[11px] text-muted-foreground space-y-1 font-mono">
+                        <div>WABA ID: {t.wabaId || "Pending"}</div>
+                        <div>Phone ID: {t.phoneNumberId || "Pending"}</div>
+                        {t.businessPhoneNumber && <div>Phone: {t.businessPhoneNumber}</div>}
+                      </div>
+                      <div className="pt-2 border-t border-border/50 flex items-center justify-between gap-2">
+                        {!isActive ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleSwitchTenant(t.id)}
+                            className="text-[11px] h-7"
+                          >
+                            Switch to Tenant
+                          </Button>
+                        ) : (
+                          <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
+                            <Check className="w-3 h-3" /> Currently Active Context
+                          </span>
+                        )}
+                        {!t.isDefault && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDeleteTenant(t.id, t.name)}
+                            className="text-[11px] h-7 text-destructive hover:bg-destructive/10"
+                            title="Remove Tenant"
+                            aria-label="Remove Tenant"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <Card className="lg:col-span-2 bg-card/60 border-border/70 shadow-lg">
               <CardHeader className="p-5 border-b border-border/60">
@@ -1302,7 +1674,7 @@ export const WhatsAppPage: React.FC = () => {
                       <span>System User Access Token (Permanent / Long-Lived)</span>
                       {config?.hasToken && (
                         <span className="text-[10px] font-mono text-emerald-400">
-                          Active: {config.tokenPreview}
+                          Token stored
                         </span>
                       )}
                     </label>
@@ -2574,7 +2946,11 @@ export const WhatsAppPage: React.FC = () => {
 
             <div className="space-y-1.5">
               <label className="text-xs font-semibold">Category</label>
-              <Select value={newTemplateCategory} onValueChange={(v: any) => setNewTemplateCategory(v)}>
+              <Select value={newTemplateCategory} onValueChange={(value) => {
+                if (value === "UTILITY" || value === "MARKETING" || value === "AUTHENTICATION") {
+                  setNewTemplateCategory(value);
+                }
+              }}>
                 <SelectTrigger className="text-xs bg-background/60">
                   <SelectValue />
                 </SelectTrigger>
@@ -2753,6 +3129,153 @@ export const WhatsAppPage: React.FC = () => {
               </Button>
               <Button type="submit" size="sm" disabled={uploadingEvidence} className="bg-primary text-white">
                 {uploadingEvidence ? "Uploading..." : "Save Evidence"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Meta Embedded Signup / OAuth Code Exchange Modal */}
+      <Dialog open={isEmbeddedSignupModalOpen} onOpenChange={setIsEmbeddedSignupModalOpen}>
+        <DialogContent className="sm:max-w-md bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-primary" /> Meta OAuth Code Exchange
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Exchange authorization code returned from Meta Embedded Signup popup for permanent access credentials.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleExchangeEmbeddedSignup} className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold">Meta Authorization Code</label>
+              <Input
+                value={signupCodeInput}
+                onChange={(e) => setSignupCodeInput(e.target.value)}
+                placeholder="AQD... OAuth Code from Meta popup"
+                className="text-xs font-mono bg-background/60"
+                required
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold">WABA ID (Optional)</label>
+                <Input
+                  value={signupWabaIdInput}
+                  onChange={(e) => setSignupWabaIdInput(e.target.value)}
+                  placeholder="e.g. 1092837465"
+                  className="text-xs font-mono bg-background/60"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold">Phone Number ID (Optional)</label>
+                <Input
+                  value={signupPhoneIdInput}
+                  onChange={(e) => setSignupPhoneIdInput(e.target.value)}
+                  placeholder="e.g. 1029384756"
+                  className="text-xs font-mono bg-background/60"
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold">Assign to Client Organization (Optional)</label>
+              <Input
+                value={signupTenantNameInput}
+                onChange={(e) => setSignupTenantNameInput(e.target.value)}
+                placeholder="Leave blank for Primary or enter Client Name"
+                className="text-xs bg-background/60"
+              />
+            </div>
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setIsEmbeddedSignupModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" size="sm" disabled={exchangingCode} className="bg-primary text-white">
+                {exchangingCode ? "Exchanging..." : "Exchange & Save Token"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Onboard Client Organization Modal */}
+      <Dialog open={isOnboardModalOpen} onOpenChange={setIsOnboardModalOpen}>
+        <DialogContent className="sm:max-w-md bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-primary" /> Onboard Client Organization
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Register a client company for isolated WhatsApp messaging, contacts, and delivery analytics.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreateTenant} className="space-y-3.5 pt-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold">Organization Name *</label>
+              <Input
+                value={newTenantName}
+                onChange={(e) => setNewTenantName(e.target.value)}
+                placeholder="e.g. Acme Health Corp"
+                className="text-xs bg-background/60"
+                required
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold">Client Contact Name</label>
+                <Input
+                  value={newTenantClient}
+                  onChange={(e) => setNewTenantClient(e.target.value)}
+                  placeholder="e.g. John Smith"
+                  className="text-xs bg-background/60"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold">Client Email</label>
+                <Input
+                  type="email"
+                  value={newTenantEmail}
+                  onChange={(e) => setNewTenantEmail(e.target.value)}
+                  placeholder="e.g. contact@acme.com"
+                  className="text-xs bg-background/60"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold">Client WABA ID</label>
+                <Input
+                  value={newTenantWabaId}
+                  onChange={(e) => setNewTenantWabaId(e.target.value)}
+                  placeholder="e.g. 1029384756"
+                  className="text-xs font-mono bg-background/60"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold">Client Phone Number ID</label>
+                <Input
+                  value={newTenantPhoneId}
+                  onChange={(e) => setNewTenantPhoneId(e.target.value)}
+                  placeholder="e.g. 1092837465"
+                  className="text-xs font-mono bg-background/60"
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold">Business Phone Number</label>
+              <Input
+                value={newTenantPhone}
+                onChange={(e) => setNewTenantPhone(e.target.value)}
+                placeholder="e.g. +1 555 123 4567"
+                className="text-xs font-mono bg-background/60"
+              />
+            </div>
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setIsOnboardModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" size="sm" disabled={creatingTenant} className="bg-primary text-white">
+                {creatingTenant ? "Onboarding..." : "Register Client Organization"}
               </Button>
             </DialogFooter>
           </form>

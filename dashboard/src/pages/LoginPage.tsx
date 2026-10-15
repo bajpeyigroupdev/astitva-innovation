@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -16,24 +16,44 @@ export const LoginPage = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading) return;
     setErrorMessage(null);
     setIsLoading(true);
 
-    const result = await authService.login(username, password);
-    setIsLoading(false);
+    try {
+      const result = await authService.login(username, password);
+      if (result.success) {
+        toast({
+          title: "Authentication Successful",
+          description: `Welcome to ${APP_CONFIG.brandName} Command Center.`,
+        });
 
-    if (result.success) {
-      toast({
-        title: "Authentication Successful",
-        description: `Welcome to ${APP_CONFIG.brandName} Command Center.`,
-      });
-      navigate("/");
-    } else {
-      setErrorMessage(result.error || "Authentication failed. Please check credentials.");
+        const from = (location.state as { from?: { pathname?: unknown; search?: unknown; hash?: unknown } } | null)?.from;
+        const pathname = typeof from?.pathname === "string" ? from.pathname : "/";
+        const isSafeReturnPath = pathname.startsWith("/") && !pathname.startsWith("//") && pathname !== "/login" && pathname !== "/admin/login";
+        navigate(
+          isSafeReturnPath
+            ? {
+                pathname,
+                search: typeof from?.search === "string" ? from.search : "",
+                hash: typeof from?.hash === "string" ? from.hash : "",
+              }
+            : "/",
+          { replace: true },
+        );
+      } else {
+        setErrorMessage(result.error || "Authentication failed. Please check credentials.");
+      }
+    } catch (error) {
+      console.error("Administrator login could not complete:", error);
+      setErrorMessage("Login could not complete. Please retry in a moment.");
+    } finally {
+      setIsLoading(false);
     }
   };
 

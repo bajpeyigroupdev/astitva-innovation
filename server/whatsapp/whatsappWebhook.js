@@ -15,9 +15,9 @@ class WhatsAppWebhookHandler {
     const token = req.query['hub.verify_token'];
     const challenge = req.query['hub.challenge'];
 
-    const expectedToken = config?.verifyToken || process.env.WHATSAPP_VERIFY_TOKEN || 'astitva_wa_verify_token_2026_secure';
+    const expectedToken = config?.verifyToken || process.env.WHATSAPP_VERIFY_TOKEN || '';
 
-    if (mode === 'subscribe' && token === expectedToken) {
+    if (expectedToken && mode === 'subscribe' && token === expectedToken) {
       console.log('✓ Meta WhatsApp Webhook GET challenge verified successfully.');
       return res.status(200).send(challenge);
     } else {

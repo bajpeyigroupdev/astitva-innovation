@@ -15,3 +15,12 @@ Thumbs.db
 **/data/db.json.tmp.*
 **/data/evidence/*
 !**/data/evidence/.gitkeep
+test-results/
+**/test-results/
+playwright-report/
+**/playwright-report/
+*.tsbuildinfo
+scratch-*/
+**/scratch-*/
+e2e-screenshots/
+**/e2e-screenshots/

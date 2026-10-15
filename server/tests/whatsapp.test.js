@@ -6,11 +6,12 @@ const whatsappClient = require('../whatsapp/whatsappClient');
 const whatsappWebhook = require('../whatsapp/whatsappWebhook');
 const checklistEngine = require('../whatsapp/checklistEngine');
 const evidenceManager = require('../whatsapp/evidenceManager');
+const { clearLegacyDefaultVerifyToken } = require('../whatsapp/whatsappConfigSecurity');
 const createWhatsAppRouter = require('../whatsapp/whatsappRoutes');
 
 console.log('======================================================================');
 console.log('ASTITVA INNOVATION — META WHATSAPP PLATFORM COMPREHENSIVE TEST SUITE');
-console.log('Covering all 20 WhatsApp API and security verification areas');
+console.log('Covering WhatsApp API and security verification scenarios');
 console.log('======================================================================\n');
 
 let passedTests = 0;
@@ -129,7 +130,46 @@ async function runAllTests() {
   });
 
   // -------------------------------------------------------------
-  // TEST 5: Invalid webhook signature rejected
+  // Webhook verification fails closed without a configured token
+  // -------------------------------------------------------------
+  await runTest('Missing webhook verification secret fails closed without a built-in token', () => {
+    const originalVerifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
+    delete process.env.WHATSAPP_VERIFY_TOKEN;
+    try {
+      assert.strictEqual(whatsappClient.resolveConfig({ whatsappConfig: {} }).verifyToken, '');
+      let statusCode = 0;
+      const req = {
+        query: {
+          'hub.mode': 'subscribe',
+          'hub.verify_token': '',
+          'hub.challenge': 'challenge_without_secret',
+        },
+      };
+      const res = {
+        status: (code) => {
+          statusCode = code;
+          return { json: () => {}, send: () => {} };
+        },
+      };
+      whatsappWebhook.verifyChallenge(req, res, { verifyToken: '' });
+      assert.strictEqual(statusCode, 403);
+    } finally {
+      if (originalVerifyToken === undefined) delete process.env.WHATSAPP_VERIFY_TOKEN;
+      else process.env.WHATSAPP_VERIFY_TOKEN = originalVerifyToken;
+    }
+  });
+
+  await runTest('Migration clears only the recognized legacy webhook token placeholder', () => {
+    const legacyConfig = { whatsappConfig: { verifyToken: 'astitva_wa_verify_token_2026_secure' } };
+    const configuredConfig = { whatsappConfig: { verifyToken: 'customer-configured-random-secret' } };
+    assert.strictEqual(clearLegacyDefaultVerifyToken(legacyConfig), true);
+    assert.strictEqual(legacyConfig.whatsappConfig.verifyToken, '');
+    assert.strictEqual(clearLegacyDefaultVerifyToken(configuredConfig), false);
+    assert.strictEqual(configuredConfig.whatsappConfig.verifyToken, 'customer-configured-random-secret');
+  });
+
+  // -------------------------------------------------------------
+  // TEST 6: Invalid webhook signature rejected
   // -------------------------------------------------------------
   await runTest('5. Invalid webhook HMAC-SHA256 signature is rejected', () => {
     const secret = 'valid_meta_app_secret_7721';
@@ -588,6 +628,130 @@ async function runAllTests() {
       const diagnosticsPayload = await diagnosticsResponse.json();
       assert.strictEqual(diagnosticsPayload.verifyTokenConfigured, true);
       assert.strictEqual(Object.prototype.hasOwnProperty.call(diagnosticsPayload, 'verifyToken'), false);
+    } finally {
+      await new Promise((resolve, reject) => server.close((err) => err ? reject(err) : resolve()));
+    }
+  });
+
+  // -------------------------------------------------------------
+  // TEST 21: Evidence files require an explicitly configured admin JWT
+  // -------------------------------------------------------------
+  await runTest('21. Evidence downloads reject fallback secrets and non-admin tokens', async () => {
+    const originalSecret = process.env.JWT_SECRET;
+    const testSecret = 'unit-test-evidence-jwt-secret';
+    const app = express();
+    app.use('/api/whatsapp', createWhatsAppRouter({
+      getDb: () => ({ whatsappEvidence: [] }),
+      saveDb: () => {},
+      authenticateAdmin: (req, res, next) => next(),
+    }));
+
+    const server = app.listen(0, '127.0.0.1');
+    try {
+      await new Promise((resolve, reject) => {
+        server.once('listening', resolve);
+        server.once('error', reject);
+      });
+      const { port } = server.address();
+      const url = `http://127.0.0.1:${port}/api/whatsapp/evidence/test-file/file`;
+
+      delete process.env.JWT_SECRET;
+      const unconfiguredResponse = await fetch(`${url}?token=arbitrary-token`);
+      assert.strictEqual(unconfiguredResponse.status, 503);
+
+      process.env.JWT_SECRET = testSecret;
+      const missingTokenResponse = await fetch(url);
+      assert.strictEqual(missingTokenResponse.status, 401);
+
+      const invalidTokenResponse = await fetch(`${url}?token=invalid-token`);
+      assert.strictEqual(invalidTokenResponse.status, 401);
+
+      const analystToken = jwt.sign({ username: 'test-analyst', role: 'analyst' }, testSecret);
+      const analystResponse = await fetch(`${url}?token=${encodeURIComponent(analystToken)}`);
+      assert.strictEqual(analystResponse.status, 403);
+
+      const adminToken = jwt.sign({ username: 'test-admin', role: 'admin' }, testSecret);
+      const adminResponse = await fetch(`${url}?token=${encodeURIComponent(adminToken)}`);
+      assert.strictEqual(adminResponse.status, 404);
+    } finally {
+      if (originalSecret === undefined) delete process.env.JWT_SECRET;
+      else process.env.JWT_SECRET = originalSecret;
+      await new Promise((resolve, reject) => server.close((err) => err ? reject(err) : resolve()));
+    }
+  });
+
+  // -------------------------------------------------------------
+  // TEST 22: Configuration and outbound-message inputs fail safely
+  // -------------------------------------------------------------
+  await runTest('22. Configuration and message routes validate inputs and save failures', async () => {
+    const app = express();
+    app.use(express.json());
+    const testDb = {
+      whatsappConfig: { verifyToken: 'test-only-webhook-token' },
+      whatsappContacts: [],
+      whatsappConversations: [],
+      whatsappMessages: [],
+    };
+    let persistenceAvailable = true;
+    app.use('/api/whatsapp', createWhatsAppRouter({
+      getDb: () => testDb,
+      saveDb: () => persistenceAvailable,
+      authenticateAdmin: (req, res, next) => next(),
+    }));
+
+    const server = app.listen(0, '127.0.0.1');
+    try {
+      await new Promise((resolve, reject) => {
+        server.once('listening', resolve);
+        server.once('error', reject);
+      });
+      const baseUrl = `http://127.0.0.1:${server.address().port}/api/whatsapp`;
+      const malformedConfig = await fetch(`${baseUrl}/config`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ wabaId: 1029384756 }),
+      });
+      assert.strictEqual(malformedConfig.status, 400);
+
+      const invalidVersion = await fetch(`${baseUrl}/config`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ apiVersion: '../../host' }),
+      });
+      assert.strictEqual(invalidVersion.status, 400);
+
+      const secret = 'test-only-whatsapp-access-token';
+      const validConfig = await fetch(`${baseUrl}/config`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token: secret, wabaId: '1029384756', phoneNumberId: '1092837465', apiVersion: 'v20.0' }),
+      });
+      assert.strictEqual(validConfig.status, 200);
+      assert.strictEqual((await validConfig.text()).includes(secret), false);
+      assert.strictEqual(testDb.whatsappConfig.token, secret);
+
+      persistenceAvailable = false;
+      const saveFailure = await fetch(`${baseUrl}/config`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ displayName: 'Test Business' }),
+      });
+      assert.strictEqual(saveFailure.status, 503);
+      persistenceAvailable = true;
+
+      const malformedText = await fetch(`${baseUrl}/messages/send-text`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ to: '+919999888877', text: 1234 }),
+      });
+      assert.strictEqual(malformedText.status, 400);
+
+      const malformedTemplate = await fetch(`${baseUrl}/messages/send-template`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ to: '+919999888877', templateName: 'approved_template', components: {} }),
+      });
+      assert.strictEqual(malformedTemplate.status, 400);
     } finally {
       await new Promise((resolve, reject) => server.close((err) => err ? reject(err) : resolve()));
     }

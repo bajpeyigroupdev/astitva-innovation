@@ -45,9 +45,9 @@ export const inquiryService = {
     try {
       const created = storageAdapter.saveInquiry(payload);
       return { success: true, data: created };
-    } catch (err: any) {
+    } catch (err) {
       console.error("Failed to submit inquiry:", err);
-      return { success: false, error: err?.message || "Failed to submit inquiry" };
+      return { success: false, error: err instanceof Error ? err.message : "Failed to submit inquiry" };
     }
   },
 };

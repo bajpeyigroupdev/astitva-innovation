@@ -1,4 +1,5 @@
 import { authService } from "../auth/authService";
+import { getErrorMessage } from "../lib/errors";
 
 export interface FounderProfile {
   id: string;
@@ -55,8 +56,8 @@ export const foundersService = {
       });
       const json = await res.json();
       return json;
-    } catch (e: any) {
-      return { success: false, error: e?.message || "Failed to add founder" };
+    } catch (e) {
+      return { success: false, error: getErrorMessage(e, "Failed to add founder") };
     }
   },
 
@@ -73,8 +74,8 @@ export const foundersService = {
       });
       const json = await res.json();
       return json;
-    } catch (e: any) {
-      return { success: false, error: e?.message || "Failed to update founder" };
+    } catch (e) {
+      return { success: false, error: getErrorMessage(e, "Failed to update founder") };
     }
   },
 

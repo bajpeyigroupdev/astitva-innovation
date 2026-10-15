@@ -14,6 +14,7 @@ import {
   WhatsAppHealthCheck,
   WhatsAppErrorGuide,
   WhatsAppSecurityPosture,
+  WhatsAppTenant,
 } from '../types/whatsapp';
 
 const getApiBase = () => import.meta.env.VITE_API_URL || '';
@@ -24,6 +25,45 @@ const EMPTY_CHECKLIST_SUMMARY = {
   progressPercent: 0,
   isReadyForSubmission: false,
 };
+
+export interface WhatsAppPagination {
+  total: number;
+  page: number;
+  limit: number;
+  pages: number;
+}
+
+export interface WhatsAppOperationResult<T = unknown> {
+  success: boolean;
+  message?: string;
+  error?: string;
+  data?: T;
+  count?: number;
+  status?: number;
+  latencyMs?: number;
+  messageId?: string;
+  optedOut?: boolean;
+}
+
+class WhatsAppApiError extends Error {
+  status: number;
+  details: unknown;
+  optedOut?: boolean;
+
+  constructor(message: string, status: number, details: unknown) {
+    super(message);
+    this.name = "WhatsAppApiError";
+    this.status = status;
+    this.details = details;
+    if (typeof details === "object" && details !== null && "optedOut" in details) {
+      this.optedOut = details.optedOut === true;
+    }
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
 
 function asArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? value as T[] : [];
@@ -52,17 +92,15 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     return text as unknown as T;
   }
 
-  const data = await response.json().catch(() => null);
+  const data: unknown = await response.json().catch(() => null);
 
   if (!response.ok) {
-    const message = data?.error || data?.message || `Request failed with status ${response.status}`;
-    const err: any = new Error(message);
-    err.status = response.status;
-    err.details = data;
-    throw err;
+    const errorText = isRecord(data) && typeof data.error === "string" ? data.error : undefined;
+    const messageText = isRecord(data) && typeof data.message === "string" ? data.message : undefined;
+    throw new WhatsAppApiError(errorText || messageText || `Request failed with status ${response.status}`, response.status, data);
   }
 
-  return data;
+  return data as T;
 }
 
 export const whatsappService = {
@@ -72,7 +110,7 @@ export const whatsappService = {
     return res.data;
   },
 
-  async connectivityTest(): Promise<any> {
+  async connectivityTest(): Promise<WhatsAppOperationResult> {
     return request('/api/whatsapp/connectivity-test', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -85,7 +123,7 @@ export const whatsappService = {
     return res.data;
   },
 
-  async updateConfig(payload: Partial<WhatsAppConfig & { token?: string; appSecret?: string; embeddedSignupConfigId?: string }>): Promise<any> {
+  async updateConfig(payload: Partial<WhatsAppConfig & { token?: string; appSecret?: string; embeddedSignupConfigId?: string; verifyToken?: string }>): Promise<WhatsAppOperationResult<WhatsAppConfig>> {
     return request('/api/whatsapp/config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -107,11 +145,64 @@ export const whatsappService = {
     });
   },
 
-  async exchangeEmbeddedSignup(payload: { code: string; wabaId?: string; phoneNumberId?: string }): Promise<any> {
+  async exchangeEmbeddedSignup(payload: {
+    code: string;
+    wabaId?: string;
+    phoneNumberId?: string;
+    tenantId?: string;
+    tenantName?: string;
+  }): Promise<WhatsAppOperationResult<WhatsAppConfig>> {
     return request('/api/whatsapp/embedded-signup/exchange', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
+    });
+  },
+
+  // Tenant Isolation & Multi-Client Management
+  async getTenants(): Promise<{ success: boolean; activeTenantId: string; data: WhatsAppTenant[] }> {
+    const res = await request<{ success: boolean; activeTenantId: string; data: WhatsAppTenant[] }>('/api/whatsapp/tenants');
+    return {
+      success: Boolean(res?.success),
+      activeTenantId: res?.activeTenantId || 'default',
+      data: asArray<WhatsAppTenant>(res?.data),
+    };
+  },
+
+  async createTenant(payload: {
+    name: string;
+    clientName?: string;
+    clientEmail?: string;
+    wabaId?: string;
+    phoneNumberId?: string;
+    businessPhoneNumber?: string;
+    displayName?: string;
+  }): Promise<WhatsAppOperationResult<WhatsAppTenant>> {
+    return request('/api/whatsapp/tenants', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async updateTenant(id: string, payload: Partial<WhatsAppTenant>): Promise<WhatsAppOperationResult<WhatsAppTenant>> {
+    return request(`/api/whatsapp/tenants/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async deleteTenant(id: string): Promise<WhatsAppOperationResult<WhatsAppTenant>> {
+    return request(`/api/whatsapp/tenants/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+  },
+
+  async activateTenant(id: string): Promise<{ success: boolean; activeTenantId: string; message: string; data: WhatsAppTenant }> {
+    return request(`/api/whatsapp/tenants/${encodeURIComponent(id)}/activate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
     });
   },
 
@@ -123,7 +214,7 @@ export const whatsappService = {
 
   async getMessages(params?: { conversationId?: string; status?: string; direction?: string; search?: string; page?: number; limit?: number }): Promise<{
     data: WhatsAppMessage[];
-    pagination?: { total: number; page: number; limit: number; pages: number };
+    pagination?: WhatsAppPagination;
   }> {
     const query = new URLSearchParams();
     if (params?.conversationId) query.set('conversationId', params.conversationId);
@@ -134,11 +225,11 @@ export const whatsappService = {
     if (params?.limit) query.set('limit', String(params.limit));
 
     const queryString = query.toString() ? `?${query.toString()}` : '';
-    const res = await request<{ success: boolean; data: WhatsAppMessage[]; pagination: any }>(`/api/whatsapp/messages${queryString}`);
+    const res = await request<{ success: boolean; data: WhatsAppMessage[]; pagination?: WhatsAppPagination }>(`/api/whatsapp/messages${queryString}`);
     return { data: asArray<WhatsAppMessage>(res?.data), pagination: res?.pagination };
   },
 
-  async sendTextMessage(payload: { to: string; text: string; previewUrl?: boolean }): Promise<any> {
+  async sendTextMessage(payload: { to: string; text: string; previewUrl?: boolean }): Promise<WhatsAppOperationResult> {
     return request('/api/whatsapp/messages/send-text', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -146,7 +237,7 @@ export const whatsappService = {
     });
   },
 
-  async sendTemplateMessage(payload: { to: string; templateName: string; languageCode?: string; components?: any[] }): Promise<any> {
+  async sendTemplateMessage(payload: { to: string; templateName: string; languageCode?: string; components?: unknown[] }): Promise<WhatsAppOperationResult> {
     return request('/api/whatsapp/messages/send-template', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -154,14 +245,14 @@ export const whatsappService = {
     });
   },
 
-  async retryMessage(id: string): Promise<any> {
+  async retryMessage(id: string): Promise<WhatsAppOperationResult> {
     return request(`/api/whatsapp/messages/retry/${id}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
   },
 
-  async sendTestRecipientMessage(payload: { to: string; text?: string; templateName?: string }): Promise<any> {
+  async sendTestRecipientMessage(payload: { to: string; text?: string; templateName?: string }): Promise<WhatsAppOperationResult> {
     return request('/api/whatsapp/test-recipient-message', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -182,7 +273,7 @@ export const whatsappService = {
     });
   },
 
-  async createTemplate(templateData: any): Promise<any> {
+  async createTemplate(templateData: Partial<WhatsAppTemplate>): Promise<WhatsAppOperationResult<WhatsAppTemplate>> {
     return request('/api/whatsapp/templates', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -193,7 +284,7 @@ export const whatsappService = {
   // 5. Contacts & Opt-in
   async getContacts(params?: { search?: string; consentStatus?: string; page?: number; limit?: number }): Promise<{
     data: WhatsAppContact[];
-    pagination?: { total: number; page: number; limit: number; pages: number };
+    pagination?: WhatsAppPagination;
   }> {
     const query = new URLSearchParams();
     if (params?.search) query.set('search', params.search);
@@ -202,11 +293,11 @@ export const whatsappService = {
     if (params?.limit) query.set('limit', String(params.limit));
 
     const queryString = query.toString() ? `?${query.toString()}` : '';
-    const res = await request<{ success: boolean; data: WhatsAppContact[]; pagination: any }>(`/api/whatsapp/contacts${queryString}`);
+    const res = await request<{ success: boolean; data: WhatsAppContact[]; pagination?: WhatsAppPagination }>(`/api/whatsapp/contacts${queryString}`);
     return { data: asArray<WhatsAppContact>(res?.data), pagination: res?.pagination };
   },
 
-  async createContact(payload: { phone: string; name?: string; consentStatus?: string; consentSource?: string; notes?: string; tags?: string[] }): Promise<any> {
+  async createContact(payload: { phone: string; name?: string; consentStatus?: string; consentSource?: string; notes?: string; tags?: string[] }): Promise<WhatsAppOperationResult<WhatsAppContact>> {
     return request('/api/whatsapp/contacts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -214,7 +305,7 @@ export const whatsappService = {
     });
   },
 
-  async updateContact(id: string, payload: Partial<WhatsAppContact>): Promise<any> {
+  async updateContact(id: string, payload: Partial<WhatsAppContact>): Promise<WhatsAppOperationResult<WhatsAppContact>> {
     return request(`/api/whatsapp/contacts/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -222,21 +313,21 @@ export const whatsappService = {
     });
   },
 
-  async optOutContact(id: string): Promise<any> {
+  async optOutContact(id: string): Promise<WhatsAppOperationResult<WhatsAppContact>> {
     return request(`/api/whatsapp/contacts/${id}/opt-out`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
   },
 
-  async optInContact(id: string): Promise<any> {
+  async optInContact(id: string): Promise<WhatsAppOperationResult<WhatsAppContact>> {
     return request(`/api/whatsapp/contacts/${id}/opt-in`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
   },
 
-  async deleteContact(id: string): Promise<any> {
+  async deleteContact(id: string): Promise<WhatsAppOperationResult<WhatsAppContact>> {
     return request(`/api/whatsapp/contacts/${id}`, {
       method: 'DELETE',
     });
@@ -248,7 +339,7 @@ export const whatsappService = {
     return asArray<WhatsAppWebhookLog>(res?.data);
   },
 
-  async testWebhookChallenge(): Promise<any> {
+  async testWebhookChallenge(): Promise<WhatsAppOperationResult> {
     return request('/api/whatsapp/webhooks/test-challenge', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -258,7 +349,7 @@ export const whatsappService = {
   // 7. Delivery Logs
   async getDeliveryLogs(params?: { operationType?: string; success?: string; search?: string; page?: number; limit?: number }): Promise<{
     data: WhatsAppDeliveryLog[];
-    pagination?: { total: number; page: number; limit: number; pages: number };
+    pagination?: WhatsAppPagination;
   }> {
     const query = new URLSearchParams();
     if (params?.operationType) query.set('operationType', params.operationType);
@@ -268,7 +359,7 @@ export const whatsappService = {
     if (params?.limit) query.set('limit', String(params.limit));
 
     const queryString = query.toString() ? `?${query.toString()}` : '';
-    const res = await request<{ success: boolean; data: WhatsAppDeliveryLog[]; pagination: any }>(`/api/whatsapp/delivery-logs${queryString}`);
+    const res = await request<{ success: boolean; data: WhatsAppDeliveryLog[]; pagination?: WhatsAppPagination }>(`/api/whatsapp/delivery-logs${queryString}`);
     return { data: asArray<WhatsAppDeliveryLog>(res?.data), pagination: res?.pagination };
   },
 
@@ -305,7 +396,7 @@ export const whatsappService = {
     });
   },
 
-  async updateEvidence(id: string, updates: Partial<WhatsAppEvidence>): Promise<any> {
+  async updateEvidence(id: string, updates: Partial<WhatsAppEvidence>): Promise<WhatsAppOperationResult<WhatsAppEvidence>> {
     return request(`/api/whatsapp/evidence/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -313,7 +404,7 @@ export const whatsappService = {
     });
   },
 
-  async deleteEvidence(id: string): Promise<any> {
+  async deleteEvidence(id: string): Promise<WhatsAppOperationResult<WhatsAppEvidence>> {
     return request(`/api/whatsapp/evidence/${id}`, {
       method: 'DELETE',
     });
@@ -354,7 +445,7 @@ export const whatsappService = {
     return res.data || [];
   },
 
-  async updateChecklistItem(id: string, updates: { manuallyVerified?: boolean; notes?: string }): Promise<any> {
+  async updateChecklistItem(id: string, updates: { manuallyVerified?: boolean; notes?: string }): Promise<WhatsAppOperationResult<WhatsAppChecklistItem>> {
     return request(`/api/whatsapp/checklist/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },

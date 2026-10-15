@@ -1,4 +1,5 @@
 import { authService } from "../auth/authService";
+import { getErrorMessage } from "../lib/errors";
 
 export interface SystemSettings {
   brandName?: string;
@@ -9,7 +10,9 @@ export interface SystemSettings {
   salesEmail?: string;
   address?: string;
   workingHours?: string;
+  hasTelegramBotToken?: boolean;
   telegramBotToken?: string;
+  clearTelegramBotToken?: boolean;
   telegramChatId?: string;
   notificationsEnabled?: boolean;
 }
@@ -62,8 +65,8 @@ export const settingsService = {
       });
       const json = await res.json();
       return json;
-    } catch (e: any) {
-      return { success: false, error: e?.message || "Failed to update settings" };
+    } catch (e) {
+      return { success: false, error: getErrorMessage(e, "Failed to update settings") };
     }
   },
 
@@ -79,8 +82,8 @@ export const settingsService = {
       });
       const json = await res.json();
       return json;
-    } catch (e: any) {
-      return { success: false, error: e?.message || "Failed to send test alert" };
+    } catch (e) {
+      return { success: false, error: getErrorMessage(e, "Failed to send test alert") };
     }
   }
 };

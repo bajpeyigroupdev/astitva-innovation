@@ -25,6 +25,11 @@ import { APP_CONFIG } from "../constants/config";
 import { settingsService, SystemSettings } from "../services/settingsService";
 import { notificationService } from "../services/notificationService";
 
+interface InstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+}
+
 export const SettingsPage = () => {
   const currentAdmin = authService.getCurrentAdmin() || "AST-ADMIN-01";
   const { toast } = useToast();
@@ -39,6 +44,7 @@ export const SettingsPage = () => {
     address: "Global Software Engineering Hub • India & Remote",
     workingHours: "Mon - Sat: 9:30 AM - 7:30 PM IST",
     telegramBotToken: "",
+    hasTelegramBotToken: false,
     telegramChatId: "",
     notificationsEnabled: true
   });
@@ -46,7 +52,7 @@ export const SettingsPage = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isTestingTelegram, setIsTestingTelegram] = useState(false);
   const [hasNotificationPermission, setHasNotificationPermission] = useState(notificationService.hasPermission());
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<InstallPromptEvent | null>(null);
 
   useEffect(() => {
     settingsService.getSettings().then((data) => {
@@ -56,9 +62,11 @@ export const SettingsPage = () => {
     });
 
     // PWA install prompt handler
-    const handleBeforeInstall = (e: any) => {
+    const handleBeforeInstall = (e: Event) => {
       e.preventDefault();
-      setDeferredPrompt(e);
+      if ("prompt" in e && "userChoice" in e) {
+        setDeferredPrompt(e as InstallPromptEvent);
+      }
     };
     window.addEventListener("beforeinstallprompt", handleBeforeInstall);
 
@@ -74,6 +82,9 @@ export const SettingsPage = () => {
     setIsSaving(false);
 
     if (res.success) {
+      if (res.data) {
+        setSettings((prev) => ({ ...prev, ...res.data, telegramBotToken: "" }));
+      }
       toast({
         title: "Settings Saved Successfully",
         description: "Company contact details & phone number (+91 7233882089) updated live.",
@@ -114,7 +125,7 @@ export const SettingsPage = () => {
   };
 
   const handleTestTelegram = async () => {
-    if (!settings.telegramBotToken || !settings.telegramChatId) {
+    if ((!settings.telegramBotToken && !settings.hasTelegramBotToken) || !settings.telegramChatId) {
       toast({
         title: "Telegram Credentials Missing",
         description: "Please enter both your Telegram Bot Token and Chat ID first.",
@@ -124,8 +135,19 @@ export const SettingsPage = () => {
     }
 
     setIsTestingTelegram(true);
-    // First save settings so backend has them
-    await settingsService.updateSettings(settings);
+    const saveResult = await settingsService.updateSettings(settings);
+    if (!saveResult.success) {
+      setIsTestingTelegram(false);
+      toast({
+        title: "Telegram Settings Could Not Be Saved",
+        description: saveResult.error || "Check the settings and try again.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (saveResult.data) {
+      setSettings((prev) => ({ ...prev, ...saveResult.data, telegramBotToken: "" }));
+    }
     const res = await settingsService.testTelegram();
     setIsTestingTelegram(false);
 
@@ -410,9 +432,13 @@ export const SettingsPage = () => {
                 type="password"
                 value={settings.telegramBotToken || ""}
                 onChange={e => setSettings({ ...settings, telegramBotToken: e.target.value })}
-                placeholder="e.g. 123456789:ABCdefGhIJKlmNoPQRstuVWXyz"
+                placeholder={settings.hasTelegramBotToken ? "Saved token configured — paste a new token to rotate" : "Paste your Telegram Bot Token"}
                 className="bg-background/80 font-mono text-xs h-10"
+                autoComplete="new-password"
               />
+              <p className="mt-1 text-[10px] text-muted-foreground" role="status">
+                {settings.hasTelegramBotToken ? "A token is stored securely on the server. The saved value is never sent to this page." : "No token is currently configured."}
+              </p>
             </div>
 
             <div>

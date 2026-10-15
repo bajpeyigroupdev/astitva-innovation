@@ -24,7 +24,7 @@ class WhatsAppClient {
       wabaId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || dbConfig.wabaId || '',
       appId: process.env.WHATSAPP_APP_ID || dbConfig.appId || '',
       appSecret: process.env.WHATSAPP_APP_SECRET || dbConfig.appSecret || '',
-      verifyToken: process.env.WHATSAPP_VERIFY_TOKEN || dbConfig.verifyToken || 'astitva_wa_verify_token_2026_secure',
+      verifyToken: process.env.WHATSAPP_VERIFY_TOKEN || dbConfig.verifyToken || '',
       apiVersion: process.env.WHATSAPP_API_VERSION || dbConfig.apiVersion || DEFAULT_GRAPH_VERSION,
       status: dbConfig.status || 'Disconnected',
     };
@@ -385,6 +385,7 @@ class WhatsAppClient {
     retryCount = 0,
     durationMs = 0,
     success = true,
+    tenantId = 'default',
   }) {
     if (!db || !saveDb) return null;
     if (!Array.isArray(db.whatsappDeliveryLogs)) {
@@ -403,6 +404,7 @@ class WhatsAppClient {
       retryCount,
       durationMs,
       success: Boolean(success),
+      tenantId: tenantId || 'default',
     };
     db.whatsappDeliveryLogs.unshift(logEntry);
     if (db.whatsappDeliveryLogs.length > 500) {

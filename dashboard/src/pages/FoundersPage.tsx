@@ -346,6 +346,8 @@ export const FoundersPage = () => {
                   size="sm"
                   onClick={() => handleDelete(f.id, f.name)}
                   className="h-8 text-xs text-destructive hover:bg-destructive/10 border-destructive/30"
+                  title="Delete Founder"
+                  aria-label="Delete Founder"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </Button>
