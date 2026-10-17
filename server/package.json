@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "node tests/auth.test.js && node tests/settingsSecurity.test.js && node tests/dataDeletion.test.js && node tests/storage.test.js && node tests/whatsapp.test.js && node tests/tenants.test.js",
+    "test": "node tests/auth.test.js && node tests/settingsSecurity.test.js && node tests/dataDeletion.test.js && node tests/storage.test.js && node tests/whatsapp.test.js && node tests/tenants.test.js && node tests/templateDispatch.test.js",
     "backup": "node scripts/backupDb.js",
     "restore": "node scripts/restoreDb.js"
   },

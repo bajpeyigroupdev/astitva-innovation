@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const templateBuilder = require('./templateBuilder');
 
 /**
  * Official Meta WhatsApp Cloud API Client for Astitva Innovation
@@ -314,8 +315,8 @@ class WhatsAppClient {
   /**
    * Send approved template message via official Meta WhatsApp Cloud API
    */
-  async sendTemplateMessage(config, { to, templateName, languageCode = 'en_US', components = [] }, db, saveDb) {
-    if (!config.token || !config.phoneNumberId) {
+  async sendTemplateMessage(config, { to, templateName, languageCode, components, parameters, variables, template }, db, saveDb) {
+    if (!config || !config.token || !config.phoneNumberId) {
       return {
         success: false,
         error: 'WhatsApp Business API is not configured. Missing Phone Number ID or Token.',
@@ -330,19 +331,57 @@ class WhatsAppClient {
       };
     }
 
-    const payload = {
-      messaging_product: 'whatsapp',
-      recipient_type: 'individual',
-      to: cleanTo,
-      type: 'template',
-      template: {
-        name: templateName,
-        language: {
-          code: languageCode,
+    const resolvedTemplate = template || (db?.whatsappTemplates || []).find((t) => t.name === templateName);
+
+    let payload;
+    if (resolvedTemplate) {
+      try {
+        const built = templateBuilder.buildGraphApiPayload({
+          to: cleanTo,
+          template: resolvedTemplate,
+          languageCode,
+          inputs: parameters || variables,
+          components: Array.isArray(components) ? components : undefined,
+        });
+        payload = built.payload;
+      } catch (err) {
+        return {
+          success: false,
+          error: err.message,
+          errorCode: err.code || 132000,
+          errorDetails: err.details || null,
+        };
+      }
+    } else {
+      // Fallback if template definition is not stored in DB: normalize components and language
+      const sanitizedComponents = Array.isArray(components)
+        ? components
+            .filter((c) => c && typeof c === 'object')
+            .map((c) => ({
+              ...c,
+              type: String(c.type || '').toLowerCase(),
+              ...(c.sub_type ? { sub_type: String(c.sub_type).toLowerCase() } : {}),
+              ...(c.index !== undefined ? { index: String(c.index) } : {}),
+            }))
+        : [];
+
+      payload = {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: cleanTo,
+        type: 'template',
+        template: {
+          name: templateName,
+          language: {
+            code: languageCode || 'en_US',
+          },
         },
-        components: Array.isArray(components) ? components : [],
-      },
-    };
+      };
+
+      if (sanitizedComponents.length > 0) {
+        payload.template.components = sanitizedComponents;
+      }
+    }
 
     return this.callGraphApi({
       endpoint: `/${config.phoneNumberId}/messages`,
@@ -654,4 +693,6 @@ class WhatsAppClient {
   }
 }
 
-module.exports = new WhatsAppClient();
+const client = new WhatsAppClient();
+client.templateBuilder = templateBuilder;
+module.exports = client;

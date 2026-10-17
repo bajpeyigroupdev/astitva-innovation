@@ -237,7 +237,15 @@ export const whatsappService = {
     });
   },
 
-  async sendTemplateMessage(payload: { to: string; templateName: string; languageCode?: string; components?: unknown[] }): Promise<WhatsAppOperationResult> {
+  async sendTemplateMessage(payload: {
+    to: string;
+    templateName: string;
+    languageCode?: string;
+    components?: unknown[];
+    parameters?: unknown[];
+    variables?: Record<string, string>;
+    previewValues?: string[];
+  }): Promise<WhatsAppOperationResult> {
     return request('/api/whatsapp/messages/send-template', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

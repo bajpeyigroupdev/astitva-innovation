@@ -145,20 +145,55 @@ export const WhatsAppMessageComposer: React.FC<WhatsAppMessageComposerProps> = (
     return availableTemplates.find((t) => t.name === selectedTemplateName);
   }, [availableTemplates, selectedTemplateName]);
 
-  const templateBodyText = useMemo(() => {
-    if (!activeTemplate?.components) return "";
+  const templateInspection = useMemo(() => {
+    if (!activeTemplate?.components) {
+      return {
+        headerVars: [] as string[],
+        bodyVars: [] as string[],
+        urlButtonVars: [] as Array<{ index: number; text: string; url: string }>,
+        totalVars: 0,
+        headerText: "",
+        bodyText: "",
+      };
+    }
+    const headerComp = activeTemplate.components.find((c) => c.type === "HEADER");
     const bodyComp = activeTemplate.components.find((c) => c.type === "BODY");
-    return bodyComp?.text || "";
-  }, [activeTemplate]);
+    const buttonsComp = activeTemplate.components.find((c) => c.type === "BUTTONS");
 
-  // Extract variable keys e.g. ["1", "2", "3"]
-  const variableKeys = useMemo(() => {
-    const matches = Array.from(templateBodyText.matchAll(/\{\{(\d+)\}\}/g));
-    const keys = Array.from(new Set(matches.map((m) => m[1]))).sort(
-      (a, b) => parseInt(a) - parseInt(b)
-    );
-    return keys;
-  }, [templateBodyText]);
+    let headerVars: string[] = [];
+    let headerText = "";
+    if (headerComp?.format === "TEXT" && headerComp.text) {
+      headerText = headerComp.text;
+      const matches = Array.from(headerComp.text.matchAll(/\{\{(\d+)\}\}/g));
+      headerVars = Array.from(new Set(matches.map((m) => m[1]))).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+    }
+
+    let bodyVars: string[] = [];
+    let bodyText = "";
+    if (bodyComp?.text) {
+      bodyText = bodyComp.text;
+      const matches = Array.from(bodyComp.text.matchAll(/\{\{(\d+)\}\}/g));
+      bodyVars = Array.from(new Set(matches.map((m) => m[1]))).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+    }
+
+    const urlButtonVars: Array<{ index: number; text: string; url: string }> = [];
+    if (buttonsComp?.buttons) {
+      buttonsComp.buttons.forEach((btn, idx) => {
+        if (btn.type === "URL" && btn.url && /\{\{(\d+)\}\}/.test(btn.url)) {
+          urlButtonVars.push({ index: idx, text: btn.text || `Button ${idx + 1}`, url: btn.url });
+        }
+      });
+    }
+
+    return {
+      headerVars,
+      bodyVars,
+      urlButtonVars,
+      totalVars: headerVars.length + bodyVars.length + urlButtonVars.length,
+      headerText,
+      bodyText,
+    };
+  }, [activeTemplate]);
 
   // Formatted Preview Text
   const previewText = useMemo(() => {
@@ -166,13 +201,32 @@ export const WhatsAppMessageComposer: React.FC<WhatsAppMessageComposerProps> = (
       return textBody.trim() || "(Empty text message)";
     }
     if (messageType === "template") {
-      if (!templateBodyText) return "(Select an approved template)";
-      let result = templateBodyText;
-      for (const k of variableKeys) {
-        const val = templateVariables[k] || `{{${k}}}`;
-        result = result.replaceAll(`{{${k}}}`, val);
+      if (!activeTemplate) return "(Select an approved template)";
+      let result = "";
+      if (templateInspection.headerText) {
+        let h = templateInspection.headerText;
+        for (const k of templateInspection.headerVars) {
+          const val = templateVariables[`header_${k}`] || templateVariables[k] || `{{${k}}}`;
+          h = h.replaceAll(`{{${k}}}`, val);
+        }
+        result += `*${h}*\n\n`;
       }
-      return result;
+      if (templateInspection.bodyText) {
+        let b = templateInspection.bodyText;
+        for (const k of templateInspection.bodyVars) {
+          const val = templateVariables[`body_${k}`] || templateVariables[k] || `{{${k}}}`;
+          b = b.replaceAll(`{{${k}}}`, val);
+        }
+        result += b;
+      }
+      if (templateInspection.urlButtonVars.length > 0) {
+        result += "\n\n--- Action Buttons ---";
+        for (const btn of templateInspection.urlButtonVars) {
+          const val = templateVariables[`button_${btn.index}`] || "https://astitvainnovation.in/";
+          result += `\n🔗 [${btn.text}]: ${btn.url.replace(/\{\{\d+\}\}/, val)}`;
+        }
+      }
+      return result || "(Approved static message with 0 parameters)";
     }
     if (messageType === "media") {
       return mediaCaption.trim()
@@ -180,7 +234,7 @@ export const WhatsAppMessageComposer: React.FC<WhatsAppMessageComposerProps> = (
         : `[${mediaType.toUpperCase()} file attached]`;
     }
     return "";
-  }, [messageType, textBody, templateBodyText, variableKeys, templateVariables, mediaType, mediaCaption]);
+  }, [messageType, textBody, activeTemplate, templateInspection, templateVariables, mediaType, mediaCaption]);
 
   // Active Sender Info
   const activeTenant = useMemo(() => {
@@ -266,16 +320,39 @@ export const WhatsAppMessageComposer: React.FC<WhatsAppMessageComposerProps> = (
           text: textBody.trim(),
         });
       } else if (messageType === "template") {
-        const bodyParameters = variableKeys.map((k) => ({
-          type: "text",
-          text: templateVariables[k] || "N/A",
-        }));
-
         const components: unknown[] = [];
-        if (bodyParameters.length > 0) {
+
+        if (templateInspection.headerVars.length > 0) {
+          components.push({
+            type: "header",
+            parameters: templateInspection.headerVars.map((k) => ({
+              type: "text",
+              text: templateVariables[`header_${k}`] || templateVariables[k] || "N/A",
+            })),
+          });
+        }
+
+        if (templateInspection.bodyVars.length > 0) {
           components.push({
             type: "body",
-            parameters: bodyParameters,
+            parameters: templateInspection.bodyVars.map((k) => ({
+              type: "text",
+              text: templateVariables[`body_${k}`] || templateVariables[k] || "N/A",
+            })),
+          });
+        }
+
+        for (const btn of templateInspection.urlButtonVars) {
+          components.push({
+            type: "button",
+            sub_type: "url",
+            index: String(btn.index),
+            parameters: [
+              {
+                type: "text",
+                text: templateVariables[`button_${btn.index}`] || "https://astitvainnovation.in/",
+              },
+            ],
           });
         }
 
@@ -538,22 +615,60 @@ export const WhatsAppMessageComposer: React.FC<WhatsAppMessageComposerProps> = (
                 </div>
 
                 {/* Variable Parameter Inputs */}
-                {variableKeys.length > 0 && (
+                {templateInspection.totalVars === 0 ? (
+                  <div className="p-3 rounded-xl bg-background/40 border border-border/50 text-xs text-muted-foreground flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>Static approved template: Requires zero dynamic parameters. Dispatches with approved content.</span>
+                  </div>
+                ) : (
                   <div className="p-3 rounded-xl bg-background/40 border border-border/50 space-y-2.5">
                     <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
                       <Sparkles className="w-3 h-3 text-primary" /> Template Variable Parameters
                     </span>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {variableKeys.map((k) => (
-                        <div key={k} className="space-y-1">
-                          <label className="text-[10px] font-mono text-muted-foreground">Parameter {`{{${k}}}`}</label>
+                      {/* Header Variables */}
+                      {templateInspection.headerVars.map((k) => (
+                        <div key={`header_${k}`} className="space-y-1">
+                          <label className="text-[10px] font-mono text-muted-foreground">Header {`{{${k}}}`}</label>
                           <Input
-                            value={templateVariables[k] || ""}
+                            value={templateVariables[`header_${k}`] || ""}
                             onChange={(e) =>
-                              setTemplateVariables((prev) => ({ ...prev, [k]: e.target.value }))
+                              setTemplateVariables((prev) => ({ ...prev, [`header_${k}`]: e.target.value }))
                             }
-                            placeholder={`Value for {{${k}}}`}
+                            placeholder={`Header variable {{${k}}}`}
                             className="text-xs h-8 bg-background/60"
+                          />
+                        </div>
+                      ))}
+
+                      {/* Body Variables */}
+                      {templateInspection.bodyVars.map((k) => (
+                        <div key={`body_${k}`} className="space-y-1">
+                          <label className="text-[10px] font-mono text-muted-foreground">Body {`{{${k}}}`}</label>
+                          <Input
+                            value={templateVariables[`body_${k}`] || templateVariables[k] || ""}
+                            onChange={(e) =>
+                              setTemplateVariables((prev) => ({ ...prev, [`body_${k}`]: e.target.value, [k]: e.target.value }))
+                            }
+                            placeholder={`Body variable {{${k}}}`}
+                            className="text-xs h-8 bg-background/60"
+                          />
+                        </div>
+                      ))}
+
+                      {/* Action Button Variables */}
+                      {templateInspection.urlButtonVars.map((btn) => (
+                        <div key={`btn_${btn.index}`} className="space-y-1 sm:col-span-2">
+                          <label className="text-[10px] font-mono text-muted-foreground">
+                            Button URL Dynamic Parameter ({btn.text})
+                          </label>
+                          <Input
+                            value={templateVariables[`button_${btn.index}`] || ""}
+                            onChange={(e) =>
+                              setTemplateVariables((prev) => ({ ...prev, [`button_${btn.index}`]: e.target.value }))
+                            }
+                            placeholder="e.g. https://astitvainnovation.in/ or url-suffix"
+                            className="text-xs h-8 bg-background/60 font-mono"
                           />
                         </div>
                       ))}

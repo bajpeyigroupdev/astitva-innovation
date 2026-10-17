@@ -7,6 +7,7 @@ const whatsappClient = require('./whatsappClient');
 const whatsappWebhook = require('./whatsappWebhook');
 const evidenceManager = require('./evidenceManager');
 const checklistEngine = require('./checklistEngine');
+const templateBuilder = require('./templateBuilder');
 
 /**
  * Express router for Meta WhatsApp Business Platform Management
@@ -1094,14 +1095,18 @@ function createWhatsAppRouter({ getDb, saveDb, authenticateAdmin }) {
   });
 
   router.post('/messages/send-template', authenticateAdmin, async (req, res) => {
-    const { to, templateName, languageCode = 'en_US', components = [] } = req.body || {};
+    const { to, templateName, languageCode, components, parameters, variables, previewValues } = req.body || {};
 
     if (typeof to !== 'string' || !to.trim() || typeof templateName !== 'string' || !templateName.trim()) {
       return res.status(400).json({ success: false, error: 'Recipient phone number and template name are required.' });
     }
-    if (typeof languageCode !== 'string' || !/^[a-z]{2,3}_[A-Z]{2,4}$/.test(languageCode)
-        || !Array.isArray(components)) {
-      return res.status(400).json({ success: false, error: 'Template language or components are invalid.' });
+
+    if (languageCode !== undefined && (typeof languageCode !== 'string' || !/^[a-z]{2,3}(_[A-Z]{2,4})?$/.test(languageCode))) {
+      return res.status(400).json({ success: false, error: 'Template language code is invalid.' });
+    }
+
+    if (components !== undefined && !Array.isArray(components)) {
+      return res.status(400).json({ success: false, error: 'Template components must be an array.' });
     }
 
     const cleanTo = String(to).replace(/\D/g, '');
@@ -1123,11 +1128,44 @@ function createWhatsAppRouter({ getDb, saveDb, authenticateAdmin }) {
       });
     }
 
+    // Resolve template from DB cache if available
+    const matchedTemplate = (db.whatsappTemplates || []).find((t) => t.name === normalizedTemplateName);
+
+    let resolvedLanguageCode = languageCode || 'en_US';
+    let resolvedComponents = Array.isArray(components) ? components : [];
+
+    if (matchedTemplate) {
+      resolvedLanguageCode = matchedTemplate.language || languageCode || 'en_US';
+
+      // Validate and build component parameters according to approved template components
+      const buildResult = templateBuilder.buildTemplateComponents(
+        matchedTemplate,
+        components || parameters || variables || previewValues || {}
+      );
+
+      if (!buildResult.success) {
+        return res.status(400).json({
+          success: false,
+          error: buildResult.error,
+          errorCode: 132000,
+          errorDetails: buildResult.details,
+        });
+      }
+
+      resolvedComponents = buildResult.components;
+    }
+
     const startTime = Date.now();
     const correlationId = `COR-TMPL-${Date.now()}-${crypto.randomBytes(2).toString('hex')}`;
     const result = await whatsappClient.sendTemplateMessage(
       config,
-      { to: cleanTo, templateName: normalizedTemplateName, languageCode, components },
+      {
+        to: cleanTo,
+        templateName: normalizedTemplateName,
+        languageCode: resolvedLanguageCode,
+        components: resolvedComponents,
+        template: matchedTemplate,
+      },
       db,
       saveDb
     );
@@ -1146,7 +1184,7 @@ function createWhatsAppRouter({ getDb, saveDb, authenticateAdmin }) {
         type: 'template',
         text: `[Template: ${templateName}]`,
         templateName,
-        templateLanguage: languageCode,
+        templateLanguage: resolvedLanguageCode,
         status: 'sent',
         timestamp,
         statusTimestamp: timestamp,
@@ -1218,7 +1256,7 @@ function createWhatsAppRouter({ getDb, saveDb, authenticateAdmin }) {
         type: 'template',
         text: `Template: ${templateName}`,
         templateName,
-        templateLanguage: languageCode,
+        templateLanguage: resolvedLanguageCode,
         status: 'failed',
         timestamp: new Date().toISOString(),
         errorMessage: result.error || 'Failed to dispatch WhatsApp template message.',

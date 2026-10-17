@@ -256,6 +256,44 @@ const initialSeed = {
         }
       ],
       lastSyncedAt: null
+    },
+    {
+      id: "tmpl_3p_direct_integration_test",
+      name: "3p_direct_integration_test_template",
+      category: "UTILITY",
+      language: "en_US",
+      status: "APPROVED",
+      components: [
+        {
+          type: "BODY",
+          text: "Integration Test: Welcome! This is a test message from the WhatsApp Business Platform. You have successfully configured your WhatsApp Business account and completed onboarding. You can now start sending messages to your customers."
+        }
+      ],
+      lastSyncedAt: "2026-10-18T00:00:00.000Z"
+    },
+    {
+      id: "tmpl_consultation_proposal_v1",
+      name: "astitva_consultation_proposal",
+      category: "UTILITY",
+      language: "en_US",
+      status: "APPROVED",
+      components: [
+        {
+          type: "BODY",
+          text: "Hello {{1}}, your consultation on {{2}} is confirmed."
+        },
+        {
+          type: "BUTTONS",
+          buttons: [
+            {
+              type: "URL",
+              text: "View Proposal",
+              url: "https://astitvainnovation.in/proposals/{{1}}"
+            }
+          ]
+        }
+      ],
+      lastSyncedAt: "2026-10-18T00:00:00.000Z"
     }
   ],
   whatsappWebhookLogs: [],

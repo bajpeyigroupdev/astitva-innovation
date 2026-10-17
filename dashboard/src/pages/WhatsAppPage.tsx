@@ -724,6 +724,53 @@ export const WhatsAppPage: React.FC = () => {
     }
   };
 
+  // Resolve active template for modal dispatch
+  const activeDispatchTemplate = useMemo(() => {
+    return templates.find((t) => t.name === selectedTemplateName);
+  }, [templates, selectedTemplateName]);
+
+  const dispatchTemplateInspection = useMemo(() => {
+    if (!activeDispatchTemplate?.components) {
+      return {
+        headerVars: [] as string[],
+        bodyVars: [] as string[],
+        urlButtonVars: [] as Array<{ index: number; text: string; url: string }>,
+        totalVars: 0,
+      };
+    }
+    const headerComp = activeDispatchTemplate.components.find((c) => c.type === "HEADER");
+    const bodyComp = activeDispatchTemplate.components.find((c) => c.type === "BODY");
+    const buttonsComp = activeDispatchTemplate.components.find((c) => c.type === "BUTTONS");
+
+    let headerVars: string[] = [];
+    if (headerComp?.format === "TEXT" && headerComp.text) {
+      const matches = Array.from(headerComp.text.matchAll(/\{\{(\d+)\}\}/g));
+      headerVars = Array.from(new Set(matches.map((m) => m[1]))).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+    }
+
+    let bodyVars: string[] = [];
+    if (bodyComp?.text) {
+      const matches = Array.from(bodyComp.text.matchAll(/\{\{(\d+)\}\}/g));
+      bodyVars = Array.from(new Set(matches.map((m) => m[1]))).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+    }
+
+    const urlButtonVars: Array<{ index: number; text: string; url: string }> = [];
+    if (buttonsComp?.buttons) {
+      buttonsComp.buttons.forEach((btn, idx) => {
+        if (btn.type === "URL" && btn.url && /\{\{(\d+)\}\}/.test(btn.url)) {
+          urlButtonVars.push({ index: idx, text: btn.text || `Button ${idx + 1}`, url: btn.url });
+        }
+      });
+    }
+
+    return {
+      headerVars,
+      bodyVars,
+      urlButtonVars,
+      totalVars: headerVars.length + bodyVars.length + urlButtonVars.length,
+    };
+  }, [activeDispatchTemplate]);
+
   // Send Template Message
   const handleSendTemplateMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -737,15 +784,48 @@ export const WhatsAppPage: React.FC = () => {
     }
 
     const components: unknown[] = [];
-    const params: Array<{ type: "text"; text: string }> = [];
-    if (templateVar1.trim()) params.push({ type: "text", text: templateVar1.trim() });
-    if (templateVar2.trim()) params.push({ type: "text", text: templateVar2.trim() });
-    if (templateVar3.trim()) params.push({ type: "text", text: templateVar3.trim() });
 
-    if (params.length > 0) {
+    // Header parameters (if any)
+    if (dispatchTemplateInspection.headerVars.length > 0) {
+      const headerParams = dispatchTemplateInspection.headerVars
+        .map((k) => (k === "1" && templateVar1.trim() ? templateVar1.trim() : ""))
+        .filter((t) => t !== "")
+        .map((t) => ({ type: "text", text: t }));
+      if (headerParams.length > 0) {
+        components.push({
+          type: "header",
+          parameters: headerParams,
+        });
+      }
+    }
+
+    // Body parameters (if any)
+    if (dispatchTemplateInspection.bodyVars.length > 0) {
+      const bodyParams: Array<{ type: "text"; text: string }> = [];
+      const varValues = [templateVar1, templateVar2, templateVar3];
+      const offset = dispatchTemplateInspection.headerVars.length;
+      for (let i = 0; i < dispatchTemplateInspection.bodyVars.length; i++) {
+        const val = varValues[offset + i] || (i === 0 ? templateVar1 : i === 1 ? templateVar2 : templateVar3);
+        if (val && val.trim()) {
+          bodyParams.push({ type: "text", text: val.trim() });
+        }
+      }
+      if (bodyParams.length > 0) {
+        components.push({
+          type: "body",
+          parameters: bodyParams,
+        });
+      }
+    }
+
+    // URL Button parameters (if any)
+    for (const btn of dispatchTemplateInspection.urlButtonVars) {
+      const btnVal = templateVar3.trim() || "https://astitvainnovation.in/";
       components.push({
-        type: "body",
-        parameters: params,
+        type: "button",
+        sub_type: "url",
+        index: String(btn.index),
+        parameters: [{ type: "text", text: btnVal }],
       });
     }
 
@@ -753,6 +833,7 @@ export const WhatsAppPage: React.FC = () => {
       await whatsappService.sendTemplateMessage({
         to: templateRecipient,
         templateName: selectedTemplateName,
+        languageCode: activeDispatchTemplate?.language || "en_US",
         components,
       });
       toast({
@@ -2971,27 +3052,56 @@ export const WhatsAppPage: React.FC = () => {
               />
             </div>
 
-            <div className="space-y-2 p-3 rounded-xl bg-background/50 border border-border/60">
-              <label className="text-[11px] font-semibold text-muted-foreground uppercase">Template Variables Preview</label>
-              <Input
-                value={templateVar1}
-                onChange={(e) => setTemplateVar1(e.target.value)}
-                placeholder="Variable {{1}} (e.g. Client Name)"
-                className="text-xs bg-background/70"
-              />
-              <Input
-                value={templateVar2}
-                onChange={(e) => setTemplateVar2(e.target.value)}
-                placeholder="Variable {{2}} (e.g. Project Topic)"
-                className="text-xs bg-background/70"
-              />
-              <Input
-                value={templateVar3}
-                onChange={(e) => setTemplateVar3(e.target.value)}
-                placeholder="Variable {{3}} (e.g. Proposal Link)"
-                className="text-xs bg-background/70"
-              />
-            </div>
+            {dispatchTemplateInspection.totalVars === 0 ? (
+              <div className="p-3 rounded-xl bg-background/50 border border-border/60 text-xs space-y-1">
+                <span className="font-semibold text-emerald-400 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Static Approved Template ({activeDispatchTemplate?.language || "en_US"})
+                </span>
+                <p className="text-[11px] text-muted-foreground">
+                  This template requires zero dynamic parameters. It will be dispatched with its official approved content.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2 p-3 rounded-xl bg-background/50 border border-border/60">
+                <label className="text-[11px] font-semibold text-muted-foreground uppercase flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-primary" /> Template Variables ({dispatchTemplateInspection.totalVars} parameter{dispatchTemplateInspection.totalVars > 1 ? "s" : ""})
+                </label>
+                {/* Header Variable */}
+                {dispatchTemplateInspection.headerVars.length > 0 && (
+                  <Input
+                    value={templateVar1}
+                    onChange={(e) => setTemplateVar1(e.target.value)}
+                    placeholder="Header Variable {{1}} (e.g. Salutation / Name)"
+                    className="text-xs bg-background/70 font-mono"
+                  />
+                )}
+                {/* Body Variables */}
+                {dispatchTemplateInspection.bodyVars.map((k, idx) => {
+                  const val = idx === 0 && dispatchTemplateInspection.headerVars.length === 0 ? templateVar1 : idx === 1 ? templateVar2 : templateVar3;
+                  const setVal = idx === 0 && dispatchTemplateInspection.headerVars.length === 0 ? setTemplateVar1 : idx === 1 ? setTemplateVar2 : setTemplateVar3;
+                  return (
+                    <Input
+                      key={`body_${k}`}
+                      value={val}
+                      onChange={(e) => setVal(e.target.value)}
+                      placeholder={`Body Variable {{${k}}} ${idx === 0 ? "(e.g. Client Name)" : idx === 1 ? "(e.g. Service / Topic)" : "(e.g. Detail)"}`}
+                      className="text-xs bg-background/70 font-mono"
+                    />
+                  );
+                })}
+                {/* URL Button Variable */}
+                {dispatchTemplateInspection.urlButtonVars.map((btn) => (
+                  <Input
+                    key={`btn_${btn.index}`}
+                    value={templateVar3}
+                    onChange={(e) => setTemplateVar3(e.target.value)}
+                    placeholder={`URL Button Dynamic Parameter (${btn.text}) (e.g. https://astitvainnovation.in/ or token)`}
+                    className="text-xs bg-background/70 font-mono"
+                  />
+                ))}
+              </div>
+            )}
 
             <DialogFooter className="pt-2">
               <Button type="button" variant="outline" size="sm" onClick={() => setIsTemplateModalOpen(false)}>
